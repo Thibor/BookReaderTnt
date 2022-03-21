@@ -340,7 +340,6 @@ namespace NSProgram
 								movesUci.Add(myMove);
 								movesUci.Add(enMove);
 								lastLength = movesUci.Count;
-								bookLoaded = book.LoadFromFile();
 								if (bookLoaded && (isW || isU || analyze))
 								{
 									if(isW || analyze)

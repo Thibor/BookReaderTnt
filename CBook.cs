@@ -706,13 +706,13 @@ namespace NSProgram
 			{
 				return false;
 			}
-			if (arrAct[0])
+			if (arrAct[255])
 			{
 				int structure = 0;
-				if (arrAge[255] < AgeMin())
-					structure = AgeMin() - arrAge[255];
-				if (arrAge[255] > AgeMax())
-					structure = arrAge[255] - AgeMax();
+				if (arrAge[0] < AgeMin())
+					structure = AgeMin() - arrAge[0];
+				if (arrAge[0] > AgeMax())
+					structure = arrAge[0] - AgeMax();
 				if (Program.isLog)
 					log.Add($"book {recList.Count:N0} added {Program.added} updated {Program.updated} deleted {delete:N0} structure {structure}");
 				Console.WriteLine($"log book {recList.Count:N0} added {Program.added} updated {Program.updated} deleted {delete:N0} structure {structure}");
