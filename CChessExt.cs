@@ -5,7 +5,32 @@ namespace NSProgram
 {
 	class CChessExt : CChess
 	{
-		public bool Is2ToEnd(out string myMov, out string enMov)
+		public bool Is1ToEnd()
+		{
+			int count = 0;
+			List<int> am = GenerateAllMoves(whiteTurn, false);
+			if (!g_inCheck)
+				foreach (int m in am)
+				{
+					MakeMove(m);
+					GenerateAllMoves(whiteTurn, true);
+					if (!g_inCheck)
+					{
+						count++;
+						if (GetGameState() != CGameState.normal)
+						{
+							UnmakeMove(m);
+							return true;
+						}
+					}
+					UnmakeMove(m);
+				}
+			if (count == 0)
+				return true;
+			return false;
+		}
+
+			public bool Is2ToEnd(out string myMov, out string enMov)
 		{
 			myMov = "";
 			enMov = "";
@@ -80,49 +105,29 @@ namespace NSProgram
 			{
 				int x = (g_passing & 0xf) - 4;
 				int y = (g_passing >> 4) - 4;
-				int i = y * 8 + x;
 				if (whiteTurn)
 					y++;
 				else
 					y--;
+				int i = y * 8 + x;
 				if (whiteTurn)
 				{
 					if ((x > 0) && (chars[i - 1] == 'P'))
-						chars[i] = 'w';
+						chars[i] = 'a';
 					if ((x < 7) && (chars[i + 1] == 'P'))
-						chars[i] = 'w';
+						chars[i] = 'a';
 
 				}
 				else
 				{
 					if ((x > 0) && (chars[i - 1] == 'p'))
-						chars[i] = 'W';
+						chars[i] = 'A';
 					if ((x < 7) && (chars[i + 1] == 'p'))
-						chars[i] = 'W';
+						chars[i] = 'A';
 				}
 			}
 
 			return new string(chars);
-		}
-
-		string BoaSToTnt(string boaS)
-		{
-			char[] chars = boaS.ToCharArray();
-			string result = "";
-			int empty = 0;
-			for (int x = 0; x < 64; x++)
-			{
-				if (chars[x] == '-')
-					empty++;
-				else
-				{
-					if (empty > 0)
-						result += empty.ToString();
-					result += chars[x];
-					empty = 0;
-				}
-			}
-			return result;
 		}
 
 		public string GetTnt()
@@ -130,7 +135,7 @@ namespace NSProgram
 			string boaS = GetBoaS();
 			if (!whiteTurn)
 				boaS = FlipVBoaS(boaS);
-			return BoaSToTnt(boaS);
+			return boaS;
 		}
 
 		public void SetTnt(string tnt)
@@ -138,19 +143,14 @@ namespace NSProgram
 			whiteTurn = true;
 			g_castleRights = 0;
 			g_passing = 0;
-			for (int n = 0; n < 64; n++)
-				g_board[arrField[n]] = colorEmpty;
-			int i = 0;
 			for (int n = 0; n < tnt.Length; n++)
 			{
+				int index = arrField[n];
 				char c = tnt[n];
 				int piece = char.IsUpper(c) ? colorWhite : colorBlack;
-				int x = i % 8;
-				int y = i / 8;
-				int index = arrField[i];
 				switch (char.ToLower(c))
 				{
-					case 'w':
+					case 'a':
 						piece |= piecePawn;
 						g_passing = index;
 						break;
@@ -165,7 +165,7 @@ namespace NSProgram
 						break;
 					case 't':
 						piece |= pieceRook;
-						switch (i)
+						switch (n)
 						{
 							case 63:
 								g_castleRights |= 1;
@@ -192,17 +192,8 @@ namespace NSProgram
 						break;
 					default:
 						piece = colorEmpty;
-						int e = c - '0';
-						char c2 = tnt[n + 1];
-						if (char.IsDigit(c2))
-						{
-							e = e * 10 + (c2 - '0');
-							n++;
-						}
-						i += (e - 1);
 						break;
 				}
-				i++;
 				g_board[index] = piece;
 			}
 		}

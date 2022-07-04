@@ -14,7 +14,7 @@ namespace NSProgram
 			emo = e;
 		}
 
-		public CEmo(int e,CRec r)
+		public CEmo(int e, CRec r)
 		{
 			emo = e;
 			rec = r;
@@ -40,29 +40,19 @@ namespace NSProgram
 				return null;
 			if (rnd < 0)
 				rnd = 0;
-			bool r = rnd > 100;
-			if (r)
-				rnd = 200 - rnd;
-			CEmo bst = this[0];
-			double bd = -200.0;
-			double h = rnd / 100.0;
-			foreach(CEmo e in this)
-			{
-				double m = r ? 127.0 - e.rec.mat : e.rec.mat + 128.0;
-				double cd = m * (1.0 - CChess.random.NextDouble() * h);
-				if (bd < cd)
-				{
-					bd = cd;
-					bst = e;
-				}
-			}
-			return bst;
+			int i1 = 0;
+			int i2 = Count;
+			if (rnd <= 100)
+				i2 = (Count * rnd) / 100;
+			else
+				i1 = ((Count - 1) * (rnd - 100)) / 100;
+			return this[CChess.random.Next(i1, i2)];
 		}
 
-		public void SetUsed()
+		public void SetUsed(bool used = true)
 		{
-			foreach(CEmo e in this)
-				e.rec.used = true;
+			foreach (CEmo e in this)
+				e.rec.used = used;
 		}
 
 		public void Shuffle()
@@ -82,10 +72,13 @@ namespace NSProgram
 			Shuffle();
 			Sort(delegate (CEmo e1, CEmo e2)
 			{
-				int r = e2.rec.mat - e1.rec.mat;
-				if (r != 0)
-					return r;
-				return e1.rec.age - e2.rec.age;
+				double r1 = e1.rec.GetValue();
+				double r2 = e2.rec.GetValue();
+				if (r1 > r2)
+					return -1;
+				if (r2 > r1)
+					return 1;
+				return e2.rec.age - e1.rec.age;
 			});
 		}
 	}

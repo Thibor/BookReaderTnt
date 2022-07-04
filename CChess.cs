@@ -808,7 +808,7 @@ namespace NSChess
 			return GetGameState(out _);
 		}
 
-		bool IsRepetition(int count = 3)
+		public bool IsRepetition(int count = 3)
 		{
 			int min =  undoIndex - g_move50;
 			if (min < 0)

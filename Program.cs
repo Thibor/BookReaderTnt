@@ -15,27 +15,28 @@ namespace NSProgram
 		public static bool isLog = false;
 		public static int added = 0;
 		public static int updated = 0;
+		public static int deleted = 0;
+		/// <summary>
+		/// Moves added to book per game.
+		/// </summary>
+		public static int bookAdd = 7;
+
 		public static CBook book = new CBook();
 
 		static void Main(string[] args)
 		{
+			bool bookChanged = false;
+			bool bookUpdate = false;
+			bool bookWrite = false;
 			bool quit = false;
 			/// <summary>
 			/// Can start teacher.
 			/// </summary>
 			bool analyze = false;
 			/// <summary>
-			/// Book can write new moves.
-			/// </summary>
-			bool isU = false;
-			/// <summary>
 			/// Book can update moves.
 			/// </summary>
 			bool isW = false;
-			/// <summary>
-			/// Moves add to book.
-			/// </summary>
-			int bookAdd = 3;
 			/// <summary>
 			/// Limit ply to wrtie.
 			/// </summary>
@@ -45,17 +46,19 @@ namespace NSProgram
 			/// </summary>
 			int bookLimitR = 0xf;
 			/// <summary>
+			/// Number of moves not found in a row.
+			/// </summary>
+			int emptyRow = 0;
+			/// <summary>
 			/// Random moves factor.
 			/// </summary>
 			int bookRandom = 60;
 			int lastLength = 0;
 			string analyzeMoves = String.Empty;
-			bool makeUpdate = false;
-			bool startUpdate = false;
 			string lastFen = String.Empty;
 			string lastMoves = String.Empty;
 			CUci Uci = new CUci();
-			CRapLog logUci = new CRapLog("tnt.uci", 0, false);
+			CRapLog logUci = new CRapLog("teacher.uci", 0, false);
 			object locker = new object();
 			string ax = "-bn";
 			List<string> listBn = new List<string>();
@@ -77,17 +80,12 @@ namespace NSProgram
 					case "-tf"://teacher file
 						ax = ac;
 						break;
-					case "-log"://writable
+					case "-log"://add log
 						ax = ac;
 						isLog = true;
 						break;
-					case "-u"://update
-						ax = ac;
-						isU = true;
-						break;
 					case "-w"://writable
 						ax = ac;
-						isU = true;
 						isW = true;
 						break;
 					default:
@@ -110,7 +108,7 @@ namespace NSProgram
 								book.maxRecords = int.TryParse(ac, out int m) ? m : 0;
 								break;
 							case "-add":
-								bookAdd = int.TryParse(ac, out int a) ? a : 0;
+								bookAdd = int.TryParse(ac, out int a) ? a : bookAdd;
 								break;
 							case "-rnd":
 								bookRandom = int.TryParse(ac, out int r) ? r : 0;
@@ -130,6 +128,7 @@ namespace NSProgram
 			string teacherFile = String.Join(" ", listTf);
 			string arguments = String.Join(" ", listEa);
 			string ext = Path.GetExtension(bookName);
+			Console.WriteLine($"info string book {CBook.name} ver {CBook.version}");
 			if (String.IsNullOrEmpty(ext))
 				bookName = $"{bookName}{CBook.defExt}";
 			bool bookLoaded = book.LoadFromFile(bookName);
@@ -138,8 +137,6 @@ namespace NSProgram
 				Console.WriteLine($"info string book on");
 				if (isW)
 					Console.WriteLine($"info string write on");
-				if (isU)
-					Console.WriteLine($"info string update on");
 			}
 
 
@@ -196,7 +193,7 @@ namespace NSProgram
 								if (!quit)
 								{
 									analyzeMoves = $"{analyzeMoves} {tokens[1]}";
-									book.AddUciMate(analyzeMoves, lastLength);
+									added += book.AddUciMate(analyzeMoves, lastLength);
 									if (bookLoaded)
 										book.SaveToFile();
 									Console.WriteLine($"info string analyze finish {analyzeMoves}");
@@ -236,8 +233,6 @@ namespace NSProgram
 				bookLimitR = 0;
 				bookLimitW = 0;
 			}
-			Console.WriteLine($"info string book {CBook.name} ver {CBook.version} moves {book.recList.Count:N0}");
-			book.bookAdd = bookAdd;
 			do
 			{
 				lock (locker)
@@ -299,6 +294,9 @@ namespace NSProgram
 							case "structure":
 								book.InfoStructure();
 								break;
+							case "update":
+								book.Update();
+								break;
 							case "save":
 								if (book.SaveToFile(Uci.GetValue(2, 0)))
 									Console.WriteLine("The book has been saved");
@@ -320,74 +318,87 @@ namespace NSProgram
 							lastMoves = Uci.GetValue("moves", "fen");
 							book.chess.SetFen(lastFen);
 							book.chess.MakeMoves(lastMoves);
-							if ((book.chess.g_moveNumber < 2) && String.IsNullOrEmpty(lastFen))
+							if (String.IsNullOrEmpty(lastFen))
 							{
-								makeUpdate = isU;
-								startUpdate = false;
-								added = 0;
-								updated = 0;
-								analyze = teacherProcess != null;
-								quit = false;
-								TeacherWriteLine("stop");
-							}
-							if (String.IsNullOrEmpty(lastFen) && book.chess.Is2ToEnd(out string myMove, out string enMove) && (isW || isU || analyze))
-							{
-								startUpdate = false;
-								string[] am = lastMoves.Split(' ');
-								List<string> movesUci = new List<string>();
-								foreach (string m in am)
-									movesUci.Add(m);
-								movesUci.Add(myMove);
-								movesUci.Add(enMove);
-								lastLength = movesUci.Count;
-								if (bookLoaded && (isW || isU || analyze))
+								if (book.chess.g_moveNumber < 2)
 								{
-									if(isW || analyze)
-										added += book.AddUciMate(movesUci, lastLength);
-									book.SaveToFile();
-								}
-								if (teacherProcess != null)
-								{
+									bookChanged = false;
+									bookUpdate = isW;
+									bookWrite = isW;
+									emptyRow = 0;
+									added = 0;
+									updated = 0;
+									deleted = 0;
+									analyze = teacherProcess != null;
+									quit = false;
 									TeacherWriteLine("stop");
-									Console.WriteLine($"info string analyze stop {analyzeMoves}");
+								}
+								if (bookLoaded && bookWrite && book.chess.Is2ToEnd(out string myMove, out string enMove))
+								{
+									bookChanged = true;
+									bookUpdate = false;
+									string[] am = lastMoves.Split(' ');
+									List<string> movesUci = new List<string>();
+									foreach (string m in am)
+										movesUci.Add(m);
+									movesUci.Add(myMove);
+									movesUci.Add(enMove);
+									lastLength = movesUci.Count;
+									added += book.AddUciMate(movesUci, lastLength);
 								}
 							}
 							break;
 						case "go":
 							string move = String.Empty;
 							if ((bookLimitR == 0) || (bookLimitR > book.chess.g_moveNumber))
-								move = book.GetMove(lastFen, lastMoves, bookRandom);
+								move = book.GetMove(lastFen, lastMoves, bookRandom,ref bookWrite);
 							if (move != String.Empty)
+							{
 								Console.WriteLine($"bestmove {move}");
+								if (bookLoaded && isW && String.IsNullOrEmpty(lastFen) && (emptyRow > 0) && (emptyRow < bookAdd))
+								{
+									bookChanged = true;
+									added += book.AddUci(lastMoves);
+								}
+								emptyRow = 0;
+							}
 							else
 							{
-								if (makeUpdate)
-								{
-									makeUpdate = false;
-									if (bookLoaded)
-									{
-										startUpdate = true;
-										updated += book.Update(lastMoves);
-									}
-								}
-								else if (startUpdate)
-								{
-									List<string> branch = book.GetRandomBranch();
-									updated += book.Update(branch);
-								}
+								emptyRow++;
 								if (analyze && (book.chess.GenerateValidMoves(out _).Count > 1))
 								{
+									analyze = false;
 									analyzeMoves = lastMoves;
 									TeacherWriteLine("stop");
 									TeacherWriteLine($"position startpos moves {analyzeMoves}");
 									TeacherWriteLine("go infinite");
-									analyze = false;
 									Console.WriteLine($"info string analyze start {analyzeMoves}");
+								}
+								if (bookUpdate)
+								{
+									int up = 0;
+									if (emptyRow == 1)
+										up = book.UpdateBack(lastMoves,0);
+									else
+									{
+										CRec rec = book.recList.GetRec();
+										up = book.UpdateRec(rec);
+									}
+									if (up > 0)
+									{
+										bookChanged = true;
+										updated += up;
+									}
 								}
 								if (engineProcess == null)
 									Console.WriteLine("enginemove");
 								else
 									engineProcess.StandardInput.WriteLine(msg);
+							}
+							if (bookChanged)
+							{
+								bookChanged = false;
+								book.SaveToFile();
 							}
 							break;
 						case "quit":

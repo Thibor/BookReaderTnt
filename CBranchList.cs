@@ -1,71 +1,100 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace NSProgram
 {
 	class CBranch
 	{
-		public int index = -1;
+		int index = 0;
 		public CEmoList emoList = new CEmoList();
 
-		public void Fill()
+		public bool Fill()
 		{
-			index = -1;
-			emoList = Program.book.GetEmoList();
+			index = 0;
+			emoList = Program.book.GetEmoList(true);
+			emoList.Shuffle();
+			return emoList.Count > 0;
 		}
 
 		public CEmo GetEmo()
 		{
-			if ((index >= 0) && (index < emoList.Count))
-				return emoList[index];
-			return null;
+			return emoList[index];
 		}
 
-		public CEmo Next()
+		public double GetBit()
 		{
-			index++;
-			return GetEmo();
+			return 1.0 / emoList.Count;
 		}
+
+		public double GetProcent()
+		{
+			return (index * 1.0) / emoList.Count;
+		}
+
+		public bool Next()
+		{
+			if (index < emoList.Count - 1)
+			{
+				index++;
+				return true;
+			}
+			return false;
+		}
+
 	}
 
 	internal class CBranchList : List<CBranch>
 	{
-		public bool Next()
+		public int used = 0;
+
+		public bool Start()
+		{
+			used = 0;
+			Program.book.chess.SetFen();
+			Clear();
+			BlFill();
+			return Count > 0;
+		}
+
+		public void BlFill()
+		{
+			CBranch branch = new CBranch();
+			if (branch.Fill())
+			{
+				used += branch.emoList.Count;
+				Add(branch);
+				Program.book.chess.MakeMove(branch.GetEmo().emo);
+				BlFill();
+			}
+		}
+
+		public bool BlNext()
 		{
 			if (Count == 0)
 				return false;
 			CBranch lastBranch = this.Last();
 			CEmo lastEmo = lastBranch.GetEmo();
-			if(lastEmo != null)
-				Program.book.chess.UnmakeMove(lastEmo.emo);
-			CEmo newEmo = lastBranch.Next();
-			if (newEmo != null)
-			{
-				Program.book.chess.MakeMove(newEmo.emo);
-				return true;
-			}
-			else if (Count > 1)
+			Program.book.chess.UnmakeMove(lastEmo.emo);
+			if (!lastBranch.Next())
 			{
 				RemoveAt(Count - 1);
-				return Next();
+				return BlNext();
 			}
-			return false;
+			CEmo newEmo = lastBranch.GetEmo();
+			Program.book.chess.MakeMove(newEmo.emo);
+			BlFill();
+			return true;
 		}
 
-		public void Fill()
+		public double GetProcent()
 		{
-			CBranch branch = new CBranch();
-			branch.Fill();
-			CEmo emo = branch.Next();
-			if (emo != null)
-			{
-				Add(branch);
-				Program.book.chess.MakeMove(emo.emo);
-				Fill();
-			}
+			double b1 = Count > 0 ? this[0].GetBit() : 1.0;
+			double b2 = Count > 1 ? this[1].GetBit() * b1 : b1;
+			double p1 = Count > 0 ? this[0].GetProcent() : 1.0;
+			double p2 = Count > 1 ? this[1].GetProcent() * b1 : b1;
+			double p3 = Count > 2 ? this[2].GetProcent() * b2 : b2;
+			return (p1 + p2 + p3) * 100.0;
 		}
 
 		public string GetUci()
@@ -83,24 +112,12 @@ namespace NSProgram
 			return uci.Trim();
 		}
 
-		public string GetIndex()
-		{
-			int len = 0;
-			string index = String.Empty;
-			foreach (CBranch branch in this)
-			{
-				index = $"{index} {branch.index}";
-				if (++len == 16)
-					break;
-			}
-			return index.Trim();
-		}
-
-		public void SetUsed()
+		public void SetUsed(bool used = true)
 		{
 			foreach (CBranch b in this)
-				b.emoList.SetUsed();
+				b.emoList.SetUsed(used);
 		}
+
 
 	}
 

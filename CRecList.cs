@@ -6,11 +6,13 @@ namespace NSProgram
 	class CRec
 	{
 		public bool used = false;
-		public ulong hash = 0;
-		public sbyte mat = 0;
-		public byte age = 0xff;
-		public int mate = 0;
+		public short mat = 0;
+		public byte age = 0;
 		public string tnt = String.Empty;
+
+		public double GetValue() {
+			return mat == 0 ? 0 : 1.0 / mat;
+		}
 	}
 
 	class CRecList : List<CRec>
@@ -19,43 +21,22 @@ namespace NSProgram
 
 		public bool AddRec(CRec rec)
 		{
-			int index = FindHash(rec.hash);
+			int index = FindTnt(rec.tnt);
 			if (index == Count)
 				Add(rec);
 			else
 			{
 				CRec r = this[index];
-				if (r.hash == rec.hash)
+				if (r.tnt == rec.tnt)
 				{
+					r.age = rec.age;
 					r.mat = rec.mat;
-					r.age = 0xff;
 					return false;
 				}
 				else
 					Insert(index, rec);
 			}
 			return true;
-		}
-
-		public int AddHash(CRec rec)
-		{
-			int index = FindHash(rec.hash);
-			if (index == Count)
-				Add(rec);
-			else
-			{
-				CRec r = this[index];
-				if (r.hash == rec.hash)
-				{
-					if (r.mat < sbyte.MaxValue)
-						r.mat++;
-					r.age = 0xff;
-					return 0;
-				}
-				else
-					Insert(index, rec);
-			}
-			return 1;
 		}
 
 		public int RecDelete(int count)
@@ -70,30 +51,31 @@ namespace NSProgram
 				Shuffle();
 				SortAge();
 				RemoveRange(Count - count, count);
-				SortHash();
+				SortTnt();
 			}
 			return c - Count;
 		}
 
-		public bool RecUpdate(CRec rec)
+		public int DeleteNotUsed()
 		{
-			int index = FindHash(rec.hash);
-			if (index < Count)
+			int del = 0;
+			Shuffle();
+			SortAge();
+			for(int n = Count -1;n >= 0; n--)
 			{
-				CRec r = this[index];
-				if (r.hash == rec.hash)
-				{
-					if (r.mat != rec.mat)
-					{
-						r.mat = rec.mat;
-						return true;
-					}
-				}
+				CRec rec = this[n];
+				if (rec.age < 0xff)
+					break;
+				if (rec.used)
+					continue;
+				RemoveAt(n);
+				del++;
 			}
-			return false;
+			SortTnt();
+			return del;
 		}
 
-		public int FindHash(ulong hash)
+		public int FindTnt(string tnt)
 		{
 			int first = -1;
 			int last = Count;
@@ -103,36 +85,60 @@ namespace NSProgram
 					return last;
 				int middle = (first + last) >> 1;
 				CRec rec = this[middle];
-				if (hash < rec.hash)
+				int c = String.Compare(tnt,rec.tnt);
+				if (c < 0)
 					last = middle;
-				else if (hash > rec.hash)
+				else if (c > 0)
 					first = middle;
 				else
 					return middle;
 			}
 		}
 
-		public CRec GetRec(ulong hash)
+		public CRec GetRec()
 		{
-			int index = FindHash(hash);
+			int index = rnd.Next(Count);
 			if (index < Count)
-				if (this[index].hash == hash)
+				return this[index];
+			return null;
+		}
+
+		public CRec GetRec(string tnt)
+		{
+			int index = FindTnt(tnt);
+			if (index < Count)
+				if (this[index].tnt == tnt)
 					return this[index];
 			return null;
 		}
 
-		public bool IsHash(ulong hash)
+		public void DelTnt(string tnt)
 		{
-			int index = FindHash(hash);
+			if (IsTnt(tnt, out int index))
+				RemoveAt(index);
+		}
+
+		public bool IsTnt(string tnt,out int index)
+		{
+			index = FindTnt(tnt);
 			if (index < Count)
-				return this[index].hash == hash;
+				return this[index].tnt == tnt;
 			return false;
 		}
 
-		public void SetUsed(bool u = false)
+		public void SetUsed(bool u)
 		{
 			foreach (CRec rec in this)
 				rec.used = u;
+		}
+
+		public int GetUsed()
+		{
+			int used = 0;
+			foreach (CRec rec in this)
+				if (rec.used)
+					used++;
+			return used;
 		}
 
 		public void Shuffle()
@@ -147,15 +153,11 @@ namespace NSProgram
 			}
 		}
 
-		public void SortHash()
+		public void SortTnt()
 		{
 			Sort(delegate (CRec r1, CRec r2)
 			{
-				if (r1.hash > r2.hash)
-					return 1;
-				if (r1.hash < r2.hash)
-					return -1;
-				return 0;
+				return String.Compare(r1.tnt,r2.tnt);
 			});
 		}
 
@@ -163,7 +165,7 @@ namespace NSProgram
 		{
 			Sort(delegate (CRec r1, CRec r2)
 			{
-				return r2.age - r1.age;
+				return r1.age - r2.age;
 			});
 		}
 
