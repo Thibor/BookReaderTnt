@@ -44,7 +44,7 @@ namespace NSProgram
 
 		int AgeDel()
 		{
-			return (AgeAvg() >> 3) + 1;
+			return (AgeAvg() >> 1) + 1;
 		}
 
 		int AgeMax()
@@ -286,7 +286,7 @@ namespace NSProgram
 		{
 			string[] lines = File.ReadAllLines(p);
 			foreach (string uci in lines)
-				AddUci(uci);
+				AddUci(uci, out _);
 		}
 
 		void AddFilePgn(string p)
@@ -304,7 +304,7 @@ namespace NSProgram
 				cm = Regex.Replace(cm, @"\.(?! |$)", ". ");
 				if (cm.StartsWith("1. "))
 				{
-					AddUci(movesUci);
+					AddUci(movesUci, out _);
 					ShowMoves();
 					movesUci = String.Empty;
 					chess.SetFen();
@@ -325,7 +325,7 @@ namespace NSProgram
 					chess.MakeMove(emo);
 				}
 			}
-			AddUci(movesUci);
+			AddUci(movesUci, out _);
 			ShowMoves();
 		}
 
@@ -343,49 +343,33 @@ namespace NSProgram
 			return false;
 		}
 
-		public int UpdateBack(string moves, int count = 0)
+		public int UpdateBack(string moves)
 		{
-			return UpdateBack(moves.Trim().Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries), count);
+			return UpdateBack(moves.Trim().Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries));
 		}
 
-		public int UpdateBack(List<string> moves, int count = 0)
+		public int UpdateBack(List<string> moves)
 		{
-			return UpdateBack(moves.ToArray(), count);
+			return UpdateBack(moves.ToArray());
 		}
 
-		public int UpdateBack(string[] moves, int count = 0)
+		public int UpdateBack(string[] moves)
 		{
-			if ((count == 0) || (count > moves.Length))
-				count = moves.Length;
+
 			int result = 0;
-			List<int> le = new List<int>();
+			List<CRec> lr = new List<CRec>();
 			chess.SetFen();
-			for (int n = 0; n < count; n++)
-			{
-				string m = moves[n];
-				chess.MakeMove(m, out int emo);
-				le.Add(emo);
-			}
-			for (int n = le.Count - 1; n >= 0; n--)
-			{
-				int emo = le[n];
-				chess.UnmakeMove(emo);
-				CEmoList emoList = GetEmoList();
-				if (emoList.Count > 0)
+			foreach (string uci in moves)
+				if (chess.MakeMove(uci, out _))
 				{
 					string tnt = chess.GetTnt();
-					sbyte mat = (sbyte)-emoList[0].rec.mat;
-					if (mat > 0)
-						mat++;
 					CRec rec = recList.GetRec(tnt);
 					if (rec != null)
-						if (rec.mat != mat)
-						{
-							rec.mat = mat;
-							result++;
-						}
+						lr.Add(rec);
 				}
-			}
+				else break;
+			for (int n = lr.Count - 2; n >= 0; n--)
+				result += UpdateRec(lr[n]);
 			return result;
 		}
 
@@ -409,38 +393,14 @@ namespace NSProgram
 			return 0;
 		}
 
-		public int AddUci(string[] moves, int limit = 0)
+		public int AddUci(string moves, out string uci, int limitLen = 0, int limitAdd = 0)
 		{
-			int ca = 0;
-			int count = moves.Length;
-			if ((limit == 0) || (limit > count))
-				limit = count;
-			chess.SetFen();
-			if (!chess.MakeMoves(moves))
-				return 0;
-			chess.SetFen();
-			for (int n = 0; n < limit; n++)
-			{
-				string m = moves[n];
-				chess.MakeMove(m, out _);
-				CRec rec = new CRec
-				{
-					tnt = chess.GetTnt()
-				};
-				if (recList.AddRec(rec))
-					ca++;
-			}
-			return ca;
+			return AddUci(moves.Trim().Split(' '), out uci, limitLen, limitAdd);
 		}
 
-		public int AddUci(string moves, int limit = 0)
+		public int AddUci(List<string> moves, out string uci, int limitLen = 0, int limitAdd = 0)
 		{
-			return AddUci(moves.Trim().Split(' '), limit);
-		}
-
-		public int AddUci(List<string> moves, int limit = 0)
-		{
-			return AddUci(moves.ToArray(), limit);
+			return AddUci(moves.ToArray(), out uci, limitLen, limitAdd);
 		}
 
 		public int AddUciMate(string moves, int gameLength)
@@ -451,6 +411,34 @@ namespace NSProgram
 		public int AddUciMate(List<string> moves, int gameLength)
 		{
 			return AddUciMate(moves.ToArray(), gameLength);
+		}
+
+		public int AddUci(string[] moves, out string uci, int limitLen = 0, int limitAdd = 0)
+		{
+			uci = String.Empty;
+			int ca = 0;
+			if ((limitLen == 0) || (limitLen > moves.Length))
+				limitLen = moves.Length;
+			chess.SetFen();
+			for (int n = 0; n < limitLen; n++)
+			{
+				string m = moves[n];
+				uci = n == 0 ? m : $"{uci} {m}";
+				if (chess.MakeMove(m, out _))
+				{
+					CRec rec = new CRec
+					{
+						tnt = chess.GetTnt()
+					};
+					if (recList.AddRec(rec))
+						ca++;
+					if ((limitAdd > 0) && (ca >= limitAdd))
+						break;
+				}
+				else
+					break;
+			}
+			return ca;
 		}
 
 		public int AddUciMate(string[] moves, int gameLength)
@@ -474,7 +462,7 @@ namespace NSProgram
 				if ((Program.bookAdd > 0) && (ca >= Program.bookAdd))
 					break;
 			}
-			UpdateBack(moves, ca);
+			UpdateBack(moves);
 			return ca;
 		}
 
@@ -563,7 +551,7 @@ namespace NSProgram
 			{
 				foreach (CRec rec in recList)
 				{
-					string l = $"{rec.tnt}{rec.mat.ToString("+#;-#;+0")}";
+					string l = $"{rec.tnt}{rec.mat:+#;-#;+0}";
 					sw.WriteLine(l);
 					Console.Write($"\rRecord {++line}");
 				}
@@ -634,8 +622,6 @@ namespace NSProgram
 			{
 				return false;
 			}
-			if (Program.deleted > 0)
-				Console.WriteLine($"log book {recList.Count:N0} added {Program.added} updated {Program.updated} deleted {Program.deleted:N0}");
 			if (Program.isLog && (maxAge > 0))
 				log.Add($"book {recList.Count:N0} added {Program.added} updated {Program.updated} deleted {Program.deleted:N0} max {maxAge}");
 			return true;
@@ -772,9 +758,11 @@ namespace NSProgram
 				return String.Empty;
 			}
 			string umo = chess.EmoToUmo(bst.emo);
-			if (bst.rec.mat != 0)
+			if (bst.rec != null)
+			{
 				Console.WriteLine($"info score mate {bst.rec.mat}");
-			Console.WriteLine($"info string book {umo} {bst.rec.mat:+#;-#;0} possible {emoList.Count} age {bst.rec.age}");
+				Console.WriteLine($"info string book {umo} {bst.rec.mat:+#;-#;0} possible {emoList.Count} age {bst.rec.age}");
+			}
 			return umo;
 		}
 
@@ -813,7 +801,7 @@ namespace NSProgram
 			ShowLevel(255, len);
 		}
 
-		public void InfoMoves(string moves)
+		public void InfoMoves(string moves = "")
 		{
 			chess.SetFen();
 			if (!chess.MakeMoves(moves))

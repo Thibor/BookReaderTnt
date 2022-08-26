@@ -19,7 +19,15 @@ namespace NSProgram
 		/// <summary>
 		/// Moves added to book per game.
 		/// </summary>
-		public static int bookAdd = 7;
+		public static int bookAdd = 5;
+		/// <summary>
+		/// Limit ply to wrtie.
+		/// </summary>
+		public static int bookLimitW = 32;
+		/// <summary>
+		/// Limit ply to read.
+		/// </summary>
+		public static int bookLimitR = 0xf;
 
 		public static CBook book = new CBook();
 
@@ -28,23 +36,11 @@ namespace NSProgram
 			bool bookChanged = false;
 			bool bookUpdate = false;
 			bool bookWrite = false;
-			bool quit = false;
-			/// <summary>
-			/// Can start teacher.
-			/// </summary>
-			bool analyze = false;
+			bool isInfo = false;
 			/// <summary>
 			/// Book can update moves.
 			/// </summary>
 			bool isW = false;
-			/// <summary>
-			/// Limit ply to wrtie.
-			/// </summary>
-			int bookLimitW = 32;
-			/// <summary>
-			/// Limit ply to read.
-			/// </summary>
-			int bookLimitR = 0xf;
 			/// <summary>
 			/// Number of moves not found in a row.
 			/// </summary>
@@ -53,12 +49,9 @@ namespace NSProgram
 			/// Random moves factor.
 			/// </summary>
 			int bookRandom = 60;
-			int lastLength = 0;
-			string analyzeMoves = String.Empty;
 			string lastFen = String.Empty;
 			string lastMoves = String.Empty;
 			CUci Uci = new CUci();
-			CRapLog logUci = new CRapLog("teacher.uci", 0, false);
 			object locker = new object();
 			string ax = "-bn";
 			List<string> listBn = new List<string>();
@@ -87,6 +80,10 @@ namespace NSProgram
 					case "-w"://writable
 						ax = ac;
 						isW = true;
+						break;
+					case "-info":
+						ax = ac;
+						isInfo = true;
 						break;
 					default:
 						switch (ax)
@@ -125,7 +122,6 @@ namespace NSProgram
 			}
 			string bookName = String.Join(" ", listBn);
 			string engineFile = String.Join(" ", listEf);
-			string teacherFile = String.Join(" ", listTf);
 			string arguments = String.Join(" ", listEa);
 			string ext = Path.GetExtension(bookName);
 			Console.WriteLine($"info string book {CBook.name} ver {CBook.version}");
@@ -152,87 +148,16 @@ namespace NSProgram
 				engineProcess.Start();
 				Console.WriteLine($"info string engine on");
 			}
-			else
-			{
-				if (engineFile != String.Empty)
+			else if (engineFile != String.Empty)
 					Console.WriteLine($"info string missing engine  [{engineFile}]");
-				engineFile = String.Empty;
-			}
-
-			Process teacherProcess = null;
-			if (File.Exists(teacherFile))
-			{
-				teacherProcess = new Process();
-				teacherProcess.StartInfo.FileName = teacherFile;
-				teacherProcess.StartInfo.WorkingDirectory = Path.GetDirectoryName(teacherFile);
-				teacherProcess.StartInfo.CreateNoWindow = true;
-				teacherProcess.StartInfo.RedirectStandardInput = true;
-				teacherProcess.StartInfo.RedirectStandardOutput = true;
-				teacherProcess.StartInfo.RedirectStandardError = true;
-				teacherProcess.StartInfo.UseShellExecute = false;
-				teacherProcess.OutputDataReceived += OnDataReceived;
-				teacherProcess.Start();
-				teacherProcess.BeginOutputReadLine();
-				teacherProcess.PriorityClass = ProcessPriorityClass.Idle;
-				Console.WriteLine($"info string teacher on");
-				TeacherWriteLine("uci");
-				TeacherWriteLine("isready");
-				TeacherWriteLine("ucinewgame");
-			}
-
-			void OnDataReceived(object sender, DataReceivedEventArgs e)
-			{
-				try
-				{
-					if (!String.IsNullOrEmpty(e.Data))
-					{
-						string[] tokens = e.Data.Trim().Split(' ');
-						if (tokens[0] == "bestmove")
-							lock (locker)
-							{
-								if (!quit)
-								{
-									analyzeMoves = $"{analyzeMoves} {tokens[1]}";
-									added += book.AddUciMate(analyzeMoves, lastLength);
-									if (bookLoaded)
-										book.SaveToFile();
-									Console.WriteLine($"info string analyze finish {analyzeMoves}");
-									if (isLog)
-										logUci.Add(analyzeMoves);
-								}
-							}
-					}
-				}
-				catch { }
-			}
-
-			void TeacherWriteLine(string c)
-			{
-				if (teacherProcess != null)
-					if (!teacherProcess.HasExited)
-					{
-						teacherProcess.StandardInput.WriteLine(c);
-						teacherProcess.StandardInput.Flush();
-					}
-			}
-
-			void TeacherTerminate()
-			{
-				if (teacherProcess != null)
-				{
-					teacherProcess.OutputDataReceived -= OnDataReceived;
-					teacherProcess.Kill();
-					teacherProcess = null;
-				}
-			}
-
-
-			if (bookLoaded && (isW || (teacherProcess != null)))
+			if (bookLoaded && isW)
 			{
 				bookRandom = 0;
 				bookLimitR = 0;
 				bookLimitW = 0;
 			}
+			if (isInfo)
+				book.InfoMoves();
 			do
 			{
 				lock (locker)
@@ -273,7 +198,7 @@ namespace NSProgram
 								else Console.WriteLine("File not found");
 								break;
 							case "adduci":
-								book.AddUci(Uci.GetValue(2, 0));
+								book.AddUci(Uci.GetValue(2, 0),out _);
 								Console.WriteLine($"{(book.recList.Count - count):N0} moves have been added");
 								break;
 							case "clear":
@@ -329,9 +254,6 @@ namespace NSProgram
 									added = 0;
 									updated = 0;
 									deleted = 0;
-									analyze = teacherProcess != null;
-									quit = false;
-									TeacherWriteLine("stop");
 								}
 								if (bookLoaded && bookWrite && book.chess.Is2ToEnd(out string myMove, out string enMove))
 								{
@@ -343,8 +265,7 @@ namespace NSProgram
 										movesUci.Add(m);
 									movesUci.Add(myMove);
 									movesUci.Add(enMove);
-									lastLength = movesUci.Count;
-									added += book.AddUciMate(movesUci, lastLength);
+									added += book.AddUciMate(movesUci, movesUci.Count);
 								}
 							}
 							break;
@@ -358,27 +279,18 @@ namespace NSProgram
 								if (bookLoaded && isW && String.IsNullOrEmpty(lastFen) && (emptyRow > 0) && (emptyRow < bookAdd))
 								{
 									bookChanged = true;
-									added += book.AddUci(lastMoves);
+									added += book.AddUci(lastMoves,out _);
 								}
 								emptyRow = 0;
 							}
 							else
 							{
 								emptyRow++;
-								if (analyze && (book.chess.GenerateValidMoves(out _).Count > 1))
-								{
-									analyze = false;
-									analyzeMoves = lastMoves;
-									TeacherWriteLine("stop");
-									TeacherWriteLine($"position startpos moves {analyzeMoves}");
-									TeacherWriteLine("go infinite");
-									Console.WriteLine($"info string analyze start {analyzeMoves}");
-								}
 								if (bookUpdate)
 								{
 									int up = 0;
 									if (emptyRow == 1)
-										up = book.UpdateBack(lastMoves,0);
+										up = book.UpdateBack(lastMoves);
 									else
 									{
 										CRec rec = book.recList.GetRec();
@@ -400,10 +312,6 @@ namespace NSProgram
 								bookChanged = false;
 								book.SaveToFile();
 							}
-							break;
-						case "quit":
-							quit = true;
-							TeacherTerminate();
 							break;
 					}
 				}

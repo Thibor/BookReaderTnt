@@ -43,11 +43,11 @@ namespace NSChess
 		const int maskColor = colorBlack | colorWhite;
 		public int g_castleRights = 0xf;
 		ulong g_hash = 0;
-		protected int g_passing = 0;
+		public int g_passing = 0;
 		public int g_move50 = 0;
 		public int g_moveNumber = 0;
 		public bool g_inCheck = false;
-		int g_lastCastle = 0;
+		public int g_lastCastle = 0;
 		bool adjInsufficient = false;
 		int undoIndex = 0;
 		readonly ulong[,] g_hashBoard = new ulong[256, 16];
@@ -269,6 +269,7 @@ namespace NSChess
 
 		public bool SetFen(string fen = defFen)
 		{
+			g_lastCastle = 0;
 			if (String.IsNullOrEmpty(fen))
 				fen = defFen;
 			string[] chunks = fen.Split(' ');

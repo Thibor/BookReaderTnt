@@ -61,9 +61,7 @@ namespace NSProgram
 			while (n > 1)
 			{
 				int k = rnd.Next(n--);
-				CEmo value = this[k];
-				this[k] = this[n];
-				this[n] = value;
+				(this[n], this[k]) = (this[k], this[n]);
 			}
 		}
 

@@ -65,7 +65,8 @@ namespace NSProgram
 				used += branch.emoList.Count;
 				Add(branch);
 				Program.book.chess.MakeMove(branch.GetEmo().emo);
-				BlFill();
+				if ((Program.bookLimitW == 0) || (Program.bookLimitW < Count))
+					BlFill();
 			}
 		}
 
