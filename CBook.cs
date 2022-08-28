@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
-using NSChess;
 using RapLog;
 
 namespace NSProgram
@@ -623,7 +622,7 @@ namespace NSProgram
 				return false;
 			}
 			if (Program.isLog && (maxAge > 0))
-				log.Add($"book {recList.Count:N0} added {Program.added} updated {Program.updated} deleted {Program.deleted:N0} max {maxAge}");
+				log.Add($"book {recList.Count:N0} added {Program.added} updated {Program.updated} deleted {Program.deleted:N0} max {maxAge} zero {Zero()}");
 			return true;
 		}
 
@@ -865,6 +864,15 @@ namespace NSProgram
 				SaveToFile();
 			} while ((max > up) && (up > 0));
 			Console.WriteLine($"records {recList.Count:N0} added {Program.added} updated {Program.updated} deleted {Program.deleted:N0}");
+		}
+
+		int Zero()
+		{
+			int z = 0;
+			foreach (CRec rec in recList)
+				if (rec.mat == 0)
+					z++;
+			return z;
 		}
 
 	}
