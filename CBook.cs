@@ -14,7 +14,7 @@ namespace NSProgram
 		public int errors = 0;
 		public int maxRecords = 0;
 		public const string name = "BookReaderTnt";
-		public const string version = "2022-07-03";
+		public const string version = "2022-08-29";
 		public string fileShortName = String.Empty;
 		string fileDirectory = String.Empty;
 		public const string defExt = ".tnt";
@@ -252,19 +252,20 @@ namespace NSProgram
 				{
 					using (BinaryReader reader = new BinaryReader(fs))
 					{
-						string header = GetHeader();
-						if (reader.ReadString() != header)
-							Console.WriteLine($"This program only supports version  [{header}]");
+						string headerBst = GetHeader();
+						string headerCur = reader.ReadString();
+						if (!Program.isIv && (headerCur != headerBst))
+							Console.WriteLine($"This program only supports version  [{headerBst}]");
 						else
 						{
 							while (reader.BaseStream.Position != reader.BaseStream.Length)
 							{
-								ulong[] hash = new ulong[4];
-								for (int n = 0; n < hash.Length; n++)
-									hash[n] = ReadUInt64(reader);
+								ulong m = ReadUInt64(reader);
+								ulong b = ReadUInt64(reader);
+								ulong w = ReadUInt64(reader);
 								CRec rec = new CRec
 								{
-									tnt = HashToTnt(hash),
+									tnt = MbwToTnt(m, b, w),
 									mat = ReadInt16(reader),
 									age = reader.ReadByte()
 								};
@@ -365,6 +366,7 @@ namespace NSProgram
 					CRec rec = recList.GetRec(tnt);
 					if (rec != null)
 						lr.Add(rec);
+					else break;
 				}
 				else break;
 			for (int n = lr.Count - 2; n >= 0; n--)
@@ -511,6 +513,142 @@ namespace NSProgram
 			return v;
 		}
 
+		void TntToMbw(string tnt, out ulong m, out ulong b, out ulong w)
+		{
+			m = 0xFFFFFFFFFFFFFFFF;
+			b = 0;
+			w = 0;
+			int z = 0;
+			for (int n = 0; n < 64; n++)
+			{
+				ulong p = 0;
+				switch (tnt[n])
+				{
+					case '-':
+						m ^= 1ul << n;
+						break;
+					case 'a':
+						p = 1;
+						break;
+					case 'P':
+						p = 2;
+						break;
+					case 'p':
+						p = 3;
+						break;
+					case 'N':
+						p = 4;
+						break;
+					case 'n':
+						p = 5;
+						break;
+					case 'B':
+						p = 6;
+						break;
+					case 'b':
+						p = 7;
+						break;
+					case 'R':
+						p = 8;
+						break;
+					case 'r':
+						p = 9;
+						break;
+					case 'Q':
+						p = 10;
+						break;
+					case 'q':
+						p = 11;
+						break;
+					case 'K':
+						p = 12;
+						break;
+					case 'k':
+						p = 13;
+						break;
+					case 'T':
+						p = 14;
+						break;
+					case 't':
+						p = 15;
+						break;
+				}
+				if (p > 0)
+				{
+					int s = (z & 0xf) << 2;
+					if (z++ < 16)
+						b |= p << s;
+					else
+						w |= p << s;
+				}
+			}
+		}
+
+		string MbwToTnt(ulong m, ulong b, ulong w)
+		{
+			string tnt = String.Empty;
+			int z = 0;
+			for (int n = 0; n < 64; n++)
+			{
+				if ((m & (1ul << n)) == 0)
+					tnt += "-";
+				else
+				{
+					int s = (z & 0xf) << 2;
+					ulong p = z++ < 16 ? (b >> s) & 0xf : (w >> s) & 0xf;
+					switch (p)
+					{
+						case 1:
+							tnt += "a";
+							break;
+						case 2:
+							tnt += "P";
+							break;
+						case 3:
+							tnt += "p";
+							break;
+						case 4:
+							tnt += "N";
+							break;
+						case 5:
+							tnt += "n";
+							break;
+						case 6:
+							tnt += "B";
+							break;
+						case 7:
+							tnt += "b";
+							break;
+						case 8:
+							tnt += "R";
+							break;
+						case 9:
+							tnt += "r";
+							break;
+						case 10:
+							tnt += "Q";
+							break;
+						case 11:
+							tnt += "q";
+							break;
+						case 12:
+							tnt += "K";
+							break;
+						case 13:
+							tnt += "k";
+							break;
+						case 14:
+							tnt += "T";
+							break;
+						case 15:
+							tnt += "t";
+							break;
+					}
+				}
+			}
+			return tnt;
+		}
+
 		public bool SaveToFile(string p)
 		{
 			string ext = Path.GetExtension(p).ToLower();
@@ -587,11 +725,12 @@ namespace NSProgram
 								Program.deleted++;
 								continue;
 							}
-							ulong[] hash = TntToHash(rec.tnt);
 							if (rec.age < maxAge)
 								rec.age++;
-							foreach (ulong h in hash)
-								WriteUInt64(writer, h);
+							TntToMbw(rec.tnt, out ulong m, out ulong b, out ulong w);
+							WriteUInt64(writer, m);
+							WriteUInt64(writer, b);
+							WriteUInt64(writer, w);
 							WriteInt16(writer, rec.mat);
 							writer.Write(rec.age);
 							lastTnt = rec.tnt;

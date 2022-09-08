@@ -28,7 +28,7 @@ namespace NSProgram
 		/// Limit ply to read.
 		/// </summary>
 		public static int bookLimitR = 0xf;
-
+		public static bool isIv = false;
 		public static CBook book = new CBook();
 
 		static void Main(string[] args)
@@ -84,6 +84,10 @@ namespace NSProgram
 					case "-info":
 						ax = ac;
 						isInfo = true;
+						break;
+					case "-iv":
+						ax = ac;
+						isIv = true;
 						break;
 					default:
 						switch (ax)
