@@ -48,7 +48,6 @@ namespace NSProgram
 				Clear();
 			else
 			{
-				Shuffle();
 				SortAge();
 				RemoveRange(Count - count, count);
 				SortTnt();
@@ -59,7 +58,6 @@ namespace NSProgram
 		public int DeleteNotUsed()
 		{
 			int del = 0;
-			Shuffle();
 			SortAge();
 			for(int n = Count -1;n >= 0; n--)
 			{
@@ -85,7 +83,7 @@ namespace NSProgram
 					return last;
 				int middle = (first + last) >> 1;
 				CRec rec = this[middle];
-				int c = String.Compare(tnt,rec.tnt);
+				int c = String.Compare(tnt,rec.tnt, StringComparison.Ordinal);
 				if (c < 0)
 					last = middle;
 				else if (c > 0)
@@ -141,7 +139,7 @@ namespace NSProgram
 			return used;
 		}
 
-		public void Shuffle()
+		public void SortRnd()
 		{
 			int n = Count;
 			while (n > 1)
@@ -157,12 +155,13 @@ namespace NSProgram
 		{
 			Sort(delegate (CRec r1, CRec r2)
 			{
-				return String.Compare(r1.tnt,r2.tnt);
+				return String.Compare(r1.tnt,r2.tnt,StringComparison.Ordinal);
 			});
 		}
 
 		public void SortAge()
 		{
+			SortRnd();
 			Sort(delegate (CRec r1, CRec r2)
 			{
 				return r1.age - r2.age;

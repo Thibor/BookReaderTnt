@@ -10,7 +10,7 @@ namespace NSProgram
 
 	class CBook
 	{
-		string path = String.Empty;
+		public string path = String.Empty;
 		public int errors = 0;
 		public int maxRecords = 0;
 		public const string name = "BookReaderTnt";
@@ -658,8 +658,8 @@ namespace NSProgram
 				return SaveToUci(p);
 			if (ext == ".pgn")
 				return SaveToPgn(p);
-			if (ext == ".tns")
-				return SaveToTns(p);
+			if (ext == ".txt")
+				return SaveToTxt(p);
 			return false;
 		}
 
@@ -680,7 +680,7 @@ namespace NSProgram
 			return true;
 		}
 
-		public bool SaveToTns(string p)
+		public bool SaveToTxt(string p)
 		{
 			int line = 0;
 			FileStream fs = File.Open(p, FileMode.Create, FileAccess.Write, FileShare.None);
@@ -898,7 +898,8 @@ namespace NSProgram
 			string umo = chess.EmoToUmo(bst.emo);
 			if (bst.rec != null)
 			{
-				Console.WriteLine($"info score mate {bst.rec.mat}");
+				if (bst.rec.mat != 0)
+					Console.WriteLine($"info score mate {bst.rec.mat}");
 				Console.WriteLine($"info string book {umo} {bst.rec.mat:+#;-#;0} possible {emoList.Count} age {bst.rec.age}");
 			}
 			return umo;
