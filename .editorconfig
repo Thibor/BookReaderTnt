@@ -1,0 +1,4 @@
+﻿[*.cs]
+
+# IDE0180: Użyj krotki do zamiany wartości
+dotnet_diagnostic.IDE0180.severity = none

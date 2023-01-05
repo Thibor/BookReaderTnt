@@ -110,130 +110,6 @@ namespace NSProgram
 			return result;
 		}
 
-		ulong[] TntToHash(string tnt)
-		{
-			int z = 0;
-			ulong[] hash = new ulong[4];
-			for (int h = 0; h < 4; h++)
-				for (int n = 0; n < 16; n++)
-				{
-					ulong p = 0;
-					switch (tnt[z++])
-					{
-						case 'a':
-							p = 1;
-							break;
-						case 'P':
-							p = 2;
-							break;
-						case 'p':
-							p = 3;
-							break;
-						case 'N':
-							p = 4;
-							break;
-						case 'n':
-							p = 5;
-							break;
-						case 'B':
-							p = 6;
-							break;
-						case 'b':
-							p = 7;
-							break;
-						case 'R':
-							p = 8;
-							break;
-						case 'r':
-							p = 9;
-							break;
-						case 'Q':
-							p = 10;
-							break;
-						case 'q':
-							p = 11;
-							break;
-						case 'K':
-							p = 12;
-							break;
-						case 'k':
-							p = 13;
-							break;
-						case 'T':
-							p = 14;
-							break;
-						case 't':
-							p = 15;
-							break;
-					}
-					hash[h] <<= 4;
-					hash[h] |= p;
-				}
-			return hash;
-		}
-
-		string HashToTnt(ulong[] hash)
-		{
-			string tnt = String.Empty;
-			foreach (ulong h in hash)
-				for (int n = 15; n >= 0; n--)
-				{
-					ulong p = (h >> (n << 2)) & 0xf;
-					switch (p)
-					{
-						case 0:
-							tnt += "-";
-							break;
-						case 1:
-							tnt += "a";
-							break;
-						case 2:
-							tnt += "P";
-							break;
-						case 3:
-							tnt += "p";
-							break;
-						case 4:
-							tnt += "N";
-							break;
-						case 5:
-							tnt += "n";
-							break;
-						case 6:
-							tnt += "B";
-							break;
-						case 7:
-							tnt += "b";
-							break;
-						case 8:
-							tnt += "R";
-							break;
-						case 9:
-							tnt += "r";
-							break;
-						case 10:
-							tnt += "Q";
-							break;
-						case 11:
-							tnt += "q";
-							break;
-						case 12:
-							tnt += "K";
-							break;
-						case 13:
-							tnt += "k";
-							break;
-						case 14:
-							tnt += "T";
-							break;
-						case 15:
-							tnt += "t";
-							break;
-					}
-				}
-			return tnt;
-		}
-
 		bool AddFileTnt(string p)
 		{
 			string pt = p + ".tmp";
@@ -460,7 +336,7 @@ namespace NSProgram
 				};
 				if (recList.AddRec(rec))
 					ca++;
-				if ((Program.bookAdd > 0) && (ca >= Program.bookAdd))
+				if ((Program.bookLimitAdd > 0) && (ca >= Program.bookLimitAdd))
 					break;
 			}
 			UpdateBack(moves);

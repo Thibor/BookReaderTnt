@@ -1,9 +1,8 @@
-﻿using System;
+﻿using NSUci;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
-using NSUci;
-using RapLog;
 
 namespace NSProgram
 {
@@ -19,7 +18,7 @@ namespace NSProgram
 		/// <summary>
 		/// Moves added to book per game.
 		/// </summary>
-		public static int bookAdd = 5;
+		public static int bookLimitAdd = 5;
 		/// <summary>
 		/// Limit ply to wrtie.
 		/// </summary>
@@ -51,7 +50,7 @@ namespace NSProgram
 			int bookRandom = 60;
 			string lastFen = String.Empty;
 			string lastMoves = String.Empty;
-			CUci Uci = new CUci();
+			CUci uci = new CUci();
 			object locker = new object();
 			string ax = "-bn";
 			List<string> listBn = new List<string>();
@@ -109,7 +108,7 @@ namespace NSProgram
 								book.maxRecords = int.TryParse(ac, out int m) ? m : 0;
 								break;
 							case "-add":
-								bookAdd = int.TryParse(ac, out int a) ? a : bookAdd;
+								bookLimitAdd = int.TryParse(ac, out int a) ? a : bookLimitAdd;
 								break;
 							case "-rnd":
 								bookRandom = int.TryParse(ac, out int r) ? r : 0;
@@ -126,7 +125,7 @@ namespace NSProgram
 			}
 			string bookName = String.Join(" ", listBn);
 			string engineFile = String.Join(" ", listEf);
-			string arguments = String.Join(" ", listEa);
+			string engineArguments = String.Join(" ", listEa);
 			string ext = Path.GetExtension(bookName);
 			Console.WriteLine($"info string book {CBook.name} ver {CBook.version}");
 			if (String.IsNullOrEmpty(ext))
@@ -140,8 +139,6 @@ namespace NSProgram
 				if (isW)
 					Console.WriteLine($"info string write on ");
 			}
-
-
 			Process engineProcess = null;
 			if (File.Exists(engineFile))
 			{
@@ -150,7 +147,7 @@ namespace NSProgram
 				engineProcess.StartInfo.WorkingDirectory = Path.GetDirectoryName(engineFile);
 				engineProcess.StartInfo.UseShellExecute = false;
 				engineProcess.StartInfo.RedirectStandardInput = true;
-				engineProcess.StartInfo.Arguments = arguments;
+				engineProcess.StartInfo.Arguments = engineArguments;
 				engineProcess.Start();
 				Console.WriteLine($"info string engine on");
 			}
@@ -182,20 +179,20 @@ namespace NSProgram
 						Console.WriteLine("book structure - show structure of current book");
 						continue;
 					}
-					Uci.SetMsg(msg);
+					uci.SetMsg(msg);
 					int count = book.recList.Count;
-					if (Uci.command == "book")
+					if (uci.command == "book")
 					{
-						switch (Uci.tokens[1])
+						switch (uci.tokens[1])
 						{
 							case "addfen":
-								if (book.AddFen(Uci.GetValue(2, 0)))
+								if (book.AddFen(uci.GetValue("addfen")))
 									Console.WriteLine("Fen have been added");
 								else
 									Console.WriteLine("Wrong fen");
 								break;
 							case "addfile":
-								string fn = Uci.GetValue(2, 0);
+								string fn = uci.GetValue("addfile");
 								if (File.Exists(fn))
 								{
 									book.AddFile(fn);
@@ -204,23 +201,23 @@ namespace NSProgram
 								else Console.WriteLine("File not found");
 								break;
 							case "adduci":
-								book.AddUci(Uci.GetValue(2, 0),out _);
-								Console.WriteLine($"{(book.recList.Count - count):N0} moves have been added");
+								book.AddUci(uci.GetValue("adduci"),out _);
+								Console.WriteLine($"{book.recList.Count - count:N0} moves have been added");
 								break;
 							case "clear":
 								book.Clear();
 								Console.WriteLine("Book is empty");
 								break;
 							case "delete":
-								int c = book.Delete(Uci.GetInt(2));
+								int c = book.Delete(uci.GetInt("delete"));
 								Console.WriteLine($"{c:N0} moves was deleted");
 								break;
 							case "load":
-								book.LoadFromFile(Uci.GetValue(2, 0));
+								book.LoadFromFile(uci.GetValue("load"));
 								book.ShowMoves(true);
 								break;
 							case "moves":
-								book.InfoMoves(Uci.GetValue(2, 0));
+								book.InfoMoves(uci.GetValue("moves"));
 								break;
 							case "structure":
 								book.InfoStructure();
@@ -229,24 +226,69 @@ namespace NSProgram
 								book.Update();
 								break;
 							case "save":
-								if (book.SaveToFile(Uci.GetValue(2, 0)))
+								if (book.SaveToFile(uci.GetValue("save")))
 									Console.WriteLine("The book has been saved");
 								else
 									Console.WriteLine("Writing to the file has failed");
 								break;
+							case "getoption":
+								Console.WriteLine($"option name Book file type string default book{CBook.defExt}");
+								Console.WriteLine($"option name Engine file type string default");
+								Console.WriteLine($"option name Engine arguments type string default");
+								Console.WriteLine($"option name Teacher file type string default");
+								Console.WriteLine($"option name Write type check default false");
+								Console.WriteLine($"option name Log type check default false");
+								Console.WriteLine($"option name Limit add moves type spin default {bookLimitAdd} min 0 max 100");
+								Console.WriteLine($"option name Limit read moves type spin default {bookLimitR} min 0 max 100");
+								Console.WriteLine($"option name Limit write moves type spin default {bookLimitW} min 0 max 100");
+								Console.WriteLine($"option name Random moves type spin default {bookRandom} min 0 max 201");
+								Console.WriteLine("optionok");
+								break;
+							case "setoption":
+								switch (uci.GetValue("name", "value").ToLower())
+								{
+									case "book file":
+										bookLoaded=book.LoadFromFile(uci.GetValue("value"));
+										break;
+									case "engine file":
+										engineFile = uci.GetValue("value");
+										break;
+									case "engine arguments":
+										engineArguments = uci.GetValue("value");
+										break;
+									case "write":
+										isW = uci.GetValue("value") == "true";
+										break;
+									case "log":
+										isLog = uci.GetValue("value") == "true";
+										break;
+									case "limit add":
+										bookLimitAdd = uci.GetInt("value");
+										break;
+									case "limit read":
+										bookLimitR = uci.GetInt("value");
+										break;
+									case "limit write":
+										bookLimitW = uci.GetInt("value");
+										break;
+									case "Random":
+										bookRandom = uci.GetInt("value");
+										break;
+								}
+								break;
 							default:
-								Console.WriteLine($"Unknown command [{Uci.tokens[1]}]");
+								Console.WriteLine($"Unknown command [{uci.tokens[1]}]");
 								break;
 						}
 						continue;
 					}
-					if ((Uci.command != "go") && (engineProcess != null))
+					if ((uci.command != "go") && (engineProcess != null))
 						engineProcess.StandardInput.WriteLine(msg);
-					switch (Uci.command)
+					switch (uci.command)
 					{
 						case "position":
-							lastFen = Uci.GetValue("fen", "moves");
-							lastMoves = Uci.GetValue("moves", "fen");
+							lastFen = uci.GetValue("fen", "moves");
+							lastMoves = uci.GetValue("moves", "fen");
 							book.chess.SetFen(lastFen);
 							book.chess.MakeMoves(lastMoves);
 							if (String.IsNullOrEmpty(lastFen))
@@ -282,7 +324,7 @@ namespace NSProgram
 							if (move != String.Empty)
 							{
 								Console.WriteLine($"bestmove {move}");
-								if (bookLoaded && isW && String.IsNullOrEmpty(lastFen) && (emptyRow > 0) && (emptyRow < bookAdd))
+								if (bookLoaded && isW && String.IsNullOrEmpty(lastFen) && (emptyRow > 0) && (emptyRow < bookLimitAdd))
 								{
 									bookChanged = true;
 									added += book.AddUci(lastMoves,out _);
@@ -321,7 +363,7 @@ namespace NSProgram
 							break;
 					}
 				}
-			} while (Uci.command != "quit");
+			} while (uci.command != "quit");
 		}
 	}
 }

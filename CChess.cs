@@ -720,7 +720,7 @@ namespace NSChess
 
 		public bool MakeMoves(string moves)
 		{
-			return MakeMoves(CUci.Split(moves));
+			return MakeMoves(moves.Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries));
 		}
 
 		public bool IsValidMove(int emo)
