@@ -123,22 +123,11 @@ namespace NSProgram
 						break;
 				}
 			}
-			string bookName = String.Join(" ", listBn);
+			string bookFile = String.Join(" ", listBn);
 			string engineFile = String.Join(" ", listEf);
 			string engineArguments = String.Join(" ", listEa);
-			string ext = Path.GetExtension(bookName);
 			Console.WriteLine($"info string book {CBook.name} ver {CBook.version}");
-			if (String.IsNullOrEmpty(ext))
-				bookName = $"{bookName}{CBook.defExt}";
-			bool bookLoaded = book.LoadFromFile(bookName);
-			if (bookLoaded && (book.recList.Count > 0))
-			{
-				FileInfo fi = new FileInfo(book.path);
-				long bpm = (fi.Length << 3) / book.recList.Count;
-				Console.WriteLine($"info string book on {book.recList.Count:N0} moves {bpm} bpm");
-				if (isW)
-					Console.WriteLine($"info string write on ");
-			}
+			bool bookLoaded = SetBookFile(bookFile);
 			Process engineProcess = null;
 			if (File.Exists(engineFile))
 			{
@@ -159,8 +148,6 @@ namespace NSProgram
 				bookLimitR = 0;
 				bookLimitW = 0;
 			}
-			if (isInfo)
-				book.InfoMoves();
 			do
 			{
 				lock (locker)
@@ -233,9 +220,6 @@ namespace NSProgram
 								break;
 							case "getoption":
 								Console.WriteLine($"option name Book file type string default book{CBook.defExt}");
-								Console.WriteLine($"option name Engine file type string default");
-								Console.WriteLine($"option name Engine arguments type string default");
-								Console.WriteLine($"option name Teacher file type string default");
 								Console.WriteLine($"option name Write type check default false");
 								Console.WriteLine($"option name Log type check default false");
 								Console.WriteLine($"option name Limit add moves type spin default {bookLimitAdd} min 0 max 100");
@@ -248,13 +232,7 @@ namespace NSProgram
 								switch (uci.GetValue("name", "value").ToLower())
 								{
 									case "book file":
-										bookLoaded=book.LoadFromFile(uci.GetValue("value"));
-										break;
-									case "engine file":
-										engineFile = uci.GetValue("value");
-										break;
-									case "engine arguments":
-										engineArguments = uci.GetValue("value");
+										SetBookFile(uci.GetValue("value"));
 										break;
 									case "write":
 										isW = uci.GetValue("value") == "true";
@@ -364,6 +342,28 @@ namespace NSProgram
 					}
 				}
 			} while (uci.command != "quit");
+
+			bool SetBookFile(string bn)
+			{
+				bookFile = bn;
+				bookLoaded = book.LoadFromFile(bookFile);
+				if (bookLoaded)
+				{
+					if ((book.recList.Count > 0) && (!string.IsNullOrEmpty(book.path)))
+					{
+						FileInfo fi = new FileInfo(book.path);
+						long bpm = (fi.Length << 3) / book.recList.Count;
+						Console.WriteLine($"info string book on {book.recList.Count:N0} moves {bpm} bpm");
+					}
+					if (isW)
+						Console.WriteLine($"info string write on");
+					if (isInfo)
+						book.InfoMoves();
+				}
+				else
+					isW = false;
+				return bookLoaded;
+			}
 		}
 	}
 }

@@ -15,8 +15,6 @@ namespace NSProgram
 		public int maxRecords = 0;
 		public const string name = "BookReaderTnt";
 		public const string version = "2022-08-29";
-		public string fileShortName = String.Empty;
-		string fileDirectory = String.Empty;
 		public const string defExt = ".tnt";
 		public CChessExt chess = new CChessExt();
 		readonly int[] arrAge = new int[0x100];
@@ -66,23 +64,8 @@ namespace NSProgram
 			return $"{name} {version}";
 		}
 
-		string GetBookFile()
-		{
-			return $"{fileShortName}{defExt}";
-		}
-
-		string GetBookPath()
-		{
-			return $@"{fileDirectory}{GetBookFile()}";
-		}
-
 		public bool LoadFromFile(string p)
 		{
-			path = p;
-			fileDirectory = Path.GetDirectoryName(p);
-			if (fileDirectory != String.Empty)
-				fileDirectory = $@"{fileDirectory}\";
-			fileShortName = Path.GetFileNameWithoutExtension(p);
 			recList.Clear();
 			return AddFile(p);
 		}
@@ -97,8 +80,6 @@ namespace NSProgram
 			bool result = true;
 			if (!File.Exists(p) && (!File.Exists(p + ".tmp")))
 				return true;
-			if (String.IsNullOrEmpty(fileShortName))
-				fileShortName = Path.GetFileNameWithoutExtension(p);
 			string ext = Path.GetExtension(p).ToLower();
 			if (ext == defExt)
 				result = AddFileTnt(p);
@@ -112,6 +93,7 @@ namespace NSProgram
 
 		bool AddFileTnt(string p)
 		{
+			path = p;
 			string pt = p + ".tmp";
 			try
 			{
@@ -541,7 +523,8 @@ namespace NSProgram
 
 		public void SaveToFile()
 		{
-			SaveToFile(GetBookPath());
+			if (!string.IsNullOrEmpty(path))
+				SaveToFile(path);
 		}
 
 		public bool SaveToUci(string p)
