@@ -349,7 +349,7 @@ namespace NSProgram
 				bookLoaded = book.LoadFromFile(bookFile);
 				if (bookLoaded)
 				{
-					if ((book.recList.Count > 0) && (!string.IsNullOrEmpty(book.path)))
+					if ((book.recList.Count > 0) && File.Exists(book.path))
 					{
 						FileInfo fi = new FileInfo(book.path);
 						long bpm = (fi.Length << 3) / book.recList.Count;
