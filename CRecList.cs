@@ -5,7 +5,6 @@ namespace NSProgram
 {
 	class CRec
 	{
-		public bool used = false;
 		public short mat = 0;
 		public byte age = 0;
 		public string tnt = String.Empty;
@@ -53,24 +52,6 @@ namespace NSProgram
 				SortTnt();
 			}
 			return c - Count;
-		}
-
-		public int DeleteNotUsed()
-		{
-			int del = 0;
-			SortAge();
-			for(int n = Count -1;n >= 0; n--)
-			{
-				CRec rec = this[n];
-				if (rec.age < 0xff)
-					break;
-				if (rec.used)
-					continue;
-				RemoveAt(n);
-				del++;
-			}
-			SortTnt();
-			return del;
 		}
 
 		public int FindTnt(string tnt)
@@ -122,21 +103,6 @@ namespace NSProgram
 			if (index < Count)
 				return this[index].tnt == tnt;
 			return false;
-		}
-
-		public void SetUsed(bool u)
-		{
-			foreach (CRec rec in this)
-				rec.used = u;
-		}
-
-		public int GetUsed()
-		{
-			int used = 0;
-			foreach (CRec rec in this)
-				if (rec.used)
-					used++;
-			return used;
 		}
 
 		public void SortRnd()

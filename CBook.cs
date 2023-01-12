@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
@@ -19,8 +20,8 @@ namespace NSProgram
 		public CChessExt chess = new CChessExt();
 		readonly int[] arrAge = new int[0x100];
 		public CRecList recList = new CRecList();
-		public CBranchList branchList = new CBranchList();
 		public CRapLog log = new CRapLog();
+		readonly Stopwatch stopWatch = new Stopwatch();
 
 		public void ShowMoves(bool last = false)
 		{
@@ -62,129 +63,6 @@ namespace NSProgram
 		string GetHeader()
 		{
 			return $"{name} {version}";
-		}
-
-		public bool LoadFromFile(string p)
-		{
-			recList.Clear();
-			return AddFile(p);
-		}
-
-		public bool LoadFromFile()
-		{
-			return LoadFromFile(path);
-		}
-
-		public bool AddFile(string p)
-		{
-			bool result = true;
-			if (!File.Exists(p) && (!File.Exists(p + ".tmp")))
-				return true;
-			string ext = Path.GetExtension(p).ToLower();
-			if (ext == defExt)
-				result = AddFileTnt(p);
-			else if (ext == ".uci")
-				AddFileUci(p);
-			else if (ext == ".pgn")
-				AddFilePgn(p);
-			Console.WriteLine($"info string moves {recList.Count:N0}");
-			return result;
-		}
-
-		bool AddFileTnt(string p)
-		{
-			path = p;
-			string pt = p + ".tmp";
-			try
-			{
-				if (!File.Exists(p) && File.Exists(pt))
-					File.Move(pt, p);
-			}
-			catch
-			{
-				return false;
-			}
-			try
-			{
-				using (FileStream fs = File.Open(p, FileMode.Open, FileAccess.Read, FileShare.Read))
-				{
-					using (BinaryReader reader = new BinaryReader(fs))
-					{
-						string headerBst = GetHeader();
-						string headerCur = reader.ReadString();
-						if (!Program.isIv && (headerCur != headerBst))
-							Console.WriteLine($"This program only supports version  [{headerBst}]");
-						else
-						{
-							while (reader.BaseStream.Position != reader.BaseStream.Length)
-							{
-								ulong m = ReadUInt64(reader);
-								ulong b = ReadUInt64(reader);
-								ulong w = ReadUInt64(reader);
-								CRec rec = new CRec
-								{
-									tnt = MbwToTnt(m, b, w),
-									mat = ReadInt16(reader),
-									age = reader.ReadByte()
-								};
-								recList.Add(rec);
-							}
-						}
-					}
-				}
-			}
-			catch
-			{
-				return false;
-			}
-			return true;
-		}
-
-		void AddFileUci(string p)
-		{
-			string[] lines = File.ReadAllLines(p);
-			foreach (string uci in lines)
-				AddUci(uci, out _);
-		}
-
-		void AddFilePgn(string p)
-		{
-			List<string> listPgn = File.ReadAllLines(p).ToList();
-			string movesUci = String.Empty;
-			chess.SetFen();
-			foreach (string m in listPgn)
-			{
-				string cm = m.Trim();
-				if (String.IsNullOrEmpty(cm))
-					continue;
-				if (cm[0] == '[')
-					continue;
-				cm = Regex.Replace(cm, @"\.(?! |$)", ". ");
-				if (cm.StartsWith("1. "))
-				{
-					AddUci(movesUci, out _);
-					ShowMoves();
-					movesUci = String.Empty;
-					chess.SetFen();
-				}
-				string[] arrMoves = cm.Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
-				foreach (string san in arrMoves)
-				{
-					if (Char.IsDigit(san[0]))
-						continue;
-					string umo = chess.SanToUmo(san);
-					if (umo == String.Empty)
-					{
-						errors++;
-						break;
-					}
-					movesUci += $" {umo}";
-					int emo = chess.UmoToEmo(umo);
-					chess.MakeMove(emo);
-				}
-			}
-			AddUci(movesUci, out _);
-			ShowMoves();
 		}
 
 		public bool AddFen(string fen)
@@ -507,6 +385,202 @@ namespace NSProgram
 			return tnt;
 		}
 
+		int GetMaxAge()
+		{
+			int max = AgeMax();
+			int last = 0;
+			for (int n = 0; n < 0xff; n++)
+			{
+				int cur = arrAge[n];
+				if (last + cur < max)
+					return n;
+				last = cur;
+			}
+			return 0xfF;
+		}
+
+		public int Delete(int c)
+		{
+			return recList.RecDelete(c);
+		}
+
+		public bool IsWinner(int index, int count)
+		{
+			return (index & 1) != (count & 1);
+		}
+
+		public short GetMat(int index, int count)
+		{
+			int mate = (count - index + 1) >> 1;
+			if (!IsWinner(index, count))
+				mate = -mate;
+			return (short)mate;
+		}
+
+		public CEmoList GetNotUsedList(CEmoList el)
+		{
+			if (el.Count == 0)
+				return el;
+			CEmoList emoList = new CEmoList();
+			List<int> moves = chess.GenerateValidMoves(out _);
+			foreach (int m in moves)
+			{
+				if (el.GetEmo(m) == null)
+				{
+					CEmo emo = new CEmo(m);
+					emoList.Add(emo);
+				}
+			}
+			if (emoList.Count > 0)
+				return emoList;
+			return el;
+		}
+
+		public CEmoList GetEmoList(short mat=short.MaxValue, int repetytion = -1)
+		{
+			CEmoList emoList = new CEmoList();
+			List<int> moves = chess.GenerateValidMoves(out _, repetytion);
+			foreach (int m in moves)
+			{
+				chess.MakeMove(m);
+				string tnt = chess.GetTnt();
+				CRec rec = recList.GetRec(tnt);
+				if (rec != null)
+					if (Math.Abs(rec.mat)<=mat)
+					{
+						CEmo emo = new CEmo(m, rec);
+						emoList.Add(emo);
+					}
+				chess.UnmakeMove(m);
+			}
+			emoList.SortMat();
+			return emoList;
+		}
+
+		public string GetMove(string fen, string moves, int rnd, ref bool bookWrite)
+		{
+			chess.SetFen(fen);
+			chess.MakeMoves(moves);
+			CEmoList emoList = GetEmoList();
+			if (rnd > 200)
+			{
+				rnd = 100;
+				emoList = GetNotUsedList(emoList);
+			}
+			if (emoList.Count == 0)
+				return String.Empty;
+			CEmo bst = emoList.GetRnd(rnd);
+			chess.MakeMove(bst.emo);
+			if (chess.IsRepetition())
+			{
+				bookWrite = false;
+				return String.Empty;
+			}
+			string umo = chess.EmoToUmo(bst.emo);
+			if (bst.rec != null)
+			{
+				if (bst.rec.mat != 0)
+					Console.WriteLine($"info score mate {bst.rec.mat}");
+				Console.WriteLine($"info string book {umo} {bst.rec.mat:+#;-#;0} possible {emoList.Count} age {bst.rec.age}");
+			}
+			return umo;
+		}
+
+		public void ShowLevel(int lev, int len)
+		{
+			int ageMax = AgeMax();
+			int ageMin = AgeMin();
+			int ageCou = arrAge[lev];
+			int del = 0;
+			if (ageCou < ageMin)
+				del = ageCou - ageMin;
+			if (ageCou > ageMax)
+				del = ageCou - ageMax;
+			Console.WriteLine("{0,4} {1," + len + "} {2," + len + "}", lev, arrAge[lev], del);
+		}
+
+		public void InfoStructure()
+		{
+			int len = recList.Count.ToString().Length;
+			int ageAvg = AgeAvg();
+			int ageMax = AgeMax();
+			int ageMin = AgeMin();
+			int ageDel = AgeDel();
+			Console.WriteLine($"moves {recList.Count:N0} min {ageMin:N0} avg {ageAvg:N0} max {ageMax:N0} delta {ageDel:N0}");
+			Console.WriteLine("{0,4} {1," + len + "} {2," + len + "}", "age", "count", "delta");
+			Console.WriteLine();
+			RefreshAge();
+			ShowLevel(0, len);
+			for (int n = 1; n < 0xff; n++)
+			{
+				if ((arrAge[n] > ageMax) || (arrAge[n] < ageMin))
+					ShowLevel(n, len);
+				if (arrAge[n] == 0)
+					break;
+			}
+			ShowLevel(255, len);
+		}
+
+		public void InfoMoves(string moves = "")
+		{
+			chess.SetFen();
+			if (!chess.MakeMoves(moves))
+				Console.WriteLine("wrong moves");
+			else
+			{
+				CEmoList el = GetEmoList();
+				if (el.Count == 0)
+					Console.WriteLine("no moves found");
+				else
+				{
+					Console.WriteLine("id move  mate age");
+					Console.WriteLine();
+					int i = 1;
+					foreach (CEmo e in el)
+					{
+						string umo = chess.EmoToUmo(e.emo);
+						Console.WriteLine(String.Format("{0,2} {1,-4} {2,5} {3,3}", i++, umo, e.rec.mat, e.rec.age));
+					}
+				}
+			}
+		}
+
+		public void Update()
+		{
+			Program.added = 0;
+			Program.updated = 0;
+			Program.deleted = 0;
+			int up = recList.Count;
+			int max;
+			do
+			{
+				int line = 0;
+				max = up;
+				up = 0;
+				foreach (CRec rec in recList)
+				{
+					up += UpdateRec(rec);
+					Console.Write($"\rupdate {(++line * 100.0 / recList.Count):N4}%");
+				}
+				Program.updated += up;
+				Console.WriteLine();
+				Console.WriteLine($"Updated {up:N0}");
+				SaveToFile();
+			} while ((max > up) && (up > 0));
+			Console.WriteLine($"records {recList.Count:N0} added {Program.added} updated {Program.updated} deleted {Program.deleted:N0}");
+		}
+
+		int Zero()
+		{
+			int z = 0;
+			foreach (CRec rec in recList)
+				if (rec.mat == 0)
+					z++;
+			return z;
+		}
+
+		#region save
+
 		public bool SaveToFile(string p)
 		{
 			string ext = Path.GetExtension(p).ToLower();
@@ -661,169 +735,7 @@ namespace NSProgram
 			return true;
 		}
 
-		int GetMaxAge()
-		{
-			int max = AgeMax();
-			int last = 0;
-			for (int n = 0; n < 0xff; n++)
-			{
-				int cur = arrAge[n];
-				if (last + cur < max)
-					return n;
-				last = cur;
-			}
-			return 0xfF;
-		}
-
-		public int Delete(int c)
-		{
-			return recList.RecDelete(c);
-		}
-
-		public bool IsWinner(int index, int count)
-		{
-			return (index & 1) != (count & 1);
-		}
-
-		public short GetMat(int index, int count)
-		{
-			int mate = (count - index + 1) >> 1;
-			if (!IsWinner(index, count))
-				mate = -mate;
-			return (short)mate;
-		}
-
-		public CEmoList GetNotUsedList(CEmoList el)
-		{
-			if (el.Count == 0)
-				return el;
-			CEmoList emoList = new CEmoList();
-			List<int> moves = chess.GenerateValidMoves(out _);
-			foreach (int m in moves)
-			{
-				if (el.GetEmo(m) == null)
-				{
-					CEmo emo = new CEmo(m);
-					emoList.Add(emo);
-				}
-			}
-			if (emoList.Count > 0)
-				return emoList;
-			return el;
-		}
-
-		public CEmoList GetEmoList(bool onlyNotUsed = false, int repetytion = -1)
-		{
-			CEmoList emoList = new CEmoList();
-			List<int> moves = chess.GenerateValidMoves(out _, repetytion);
-			foreach (int m in moves)
-			{
-				chess.MakeMove(m);
-				string tnt = chess.GetTnt();
-				CRec rec = recList.GetRec(tnt);
-				if (rec != null)
-					if (!onlyNotUsed || !rec.used)
-					{
-						if (onlyNotUsed)
-							rec.used = true;
-						CEmo emo = new CEmo(m, rec);
-						emoList.Add(emo);
-					}
-				chess.UnmakeMove(m);
-			}
-			emoList.SortMat();
-			return emoList;
-		}
-
-		public string GetMove(string fen, string moves, int rnd, ref bool bookWrite)
-		{
-			chess.SetFen(fen);
-			chess.MakeMoves(moves);
-			CEmoList emoList = GetEmoList();
-			if (rnd > 200)
-			{
-				rnd = 100;
-				emoList = GetNotUsedList(emoList);
-			}
-			if (emoList.Count == 0)
-				return String.Empty;
-			CEmo bst = emoList.GetRnd(rnd);
-			chess.MakeMove(bst.emo);
-			if (chess.IsRepetition())
-			{
-				bookWrite = false;
-				return String.Empty;
-			}
-			string umo = chess.EmoToUmo(bst.emo);
-			if (bst.rec != null)
-			{
-				if (bst.rec.mat != 0)
-					Console.WriteLine($"info score mate {bst.rec.mat}");
-				Console.WriteLine($"info string book {umo} {bst.rec.mat:+#;-#;0} possible {emoList.Count} age {bst.rec.age}");
-			}
-			return umo;
-		}
-
-		public void ShowLevel(int lev, int len)
-		{
-			int ageMax = AgeMax();
-			int ageMin = AgeMin();
-			int ageCou = arrAge[lev];
-			int del = 0;
-			if (ageCou < ageMin)
-				del = ageCou - ageMin;
-			if (ageCou > ageMax)
-				del = ageCou - ageMax;
-			Console.WriteLine("{0,4} {1," + len + "} {2," + len + "}", lev, arrAge[lev], del);
-		}
-
-		public void InfoStructure()
-		{
-			int len = recList.Count.ToString().Length;
-			int ageAvg = AgeAvg();
-			int ageMax = AgeMax();
-			int ageMin = AgeMin();
-			int ageDel = AgeDel();
-			Console.WriteLine($"moves {recList.Count:N0} min {ageMin:N0} avg {ageAvg:N0} max {ageMax:N0} delta {ageDel:N0}");
-			Console.WriteLine("{0,4} {1," + len + "} {2," + len + "}", "age", "count", "delta");
-			Console.WriteLine();
-			RefreshAge();
-			ShowLevel(0, len);
-			for (int n = 1; n < 0xff; n++)
-			{
-				if ((arrAge[n] > ageMax) || (arrAge[n] < ageMin))
-					ShowLevel(n, len);
-				if (arrAge[n] == 0)
-					break;
-			}
-			ShowLevel(255, len);
-		}
-
-		public void InfoMoves(string moves = "")
-		{
-			chess.SetFen();
-			if (!chess.MakeMoves(moves))
-				Console.WriteLine("wrong moves");
-			else
-			{
-				CEmoList el = GetEmoList();
-				if (el.Count == 0)
-					Console.WriteLine("no moves found");
-				else
-				{
-					Console.WriteLine("id move  mate age");
-					Console.WriteLine();
-					int i = 1;
-					foreach (CEmo e in el)
-					{
-						string umo = chess.EmoToUmo(e.emo);
-						Console.WriteLine(String.Format("{0,2} {1,-4} {2,5} {3,3}", i++, umo, e.rec.mat, e.rec.age));
-					}
-				}
-			}
-		}
-
-		List<string> GetGames()
+		/*List<string> GetGames()
 		{
 			List<string> sl = new List<string>();
 			if (branchList.Start())
@@ -838,41 +750,186 @@ namespace NSProgram
 			Console.WriteLine($"games {sl.Count:N0} used {branchList.used:N0} ({pro:N2}%)");
 			sl.Sort();
 			return sl;
+		}*/
+
+		List<string> GetGames()
+		{
+			List<string> sl = new List<string>();
+			GetGames(string.Empty, 0, short.MaxValue, 0, 1, ref sl);
+			Console.WriteLine();
+			Console.WriteLine("finish");
+			Console.Beep();
+			sl.Sort();
+			return sl;
 		}
 
-		public void Update()
+		void GetGames(string moves, int ply, short score, double proT, double proU, ref List<string> list)
 		{
-			Program.added = 0;
-			Program.updated = 0;
-			Program.deleted = 0;
-			int up = recList.Count;
-			int max;
-			do
+			bool add = true;
+			if (ply < 12)
 			{
-				int line = 0;
-				max = up;
-				up = 0;
-				foreach (CRec rec in recList)
+				chess.SetFen();
+				chess.MakeMoves(moves);
+				CEmoList el = GetEmoList();
+				if (el.Count > 0)
 				{
-					up += UpdateRec(rec);
-					Console.Write($"\rupdate {(++line * 100.0 / recList.Count):N4}%");
+					proU /= el.Count;
+					for (int n = 0; n < el.Count; n++)
+					{
+						CEmo emo = el[n];
+						short curScore = Math.Abs(emo.rec.mat);
+						double p = proT + n * proU;
+						if (curScore <= score)
+						{
+							add = false;
+							GetGames($"{moves} {chess.EmoToUmo(emo.emo)}".Trim(), ply + 1, curScore, p, proU, ref list);
+						}
+					}
 				}
-				Program.updated += up;
-				Console.WriteLine();
-				Console.WriteLine($"Updated {up:N0}");
-				SaveToFile();
-			} while ((max > up) && (up > 0));
-			Console.WriteLine($"records {recList.Count:N0} added {Program.added} updated {Program.updated} deleted {Program.deleted:N0}");
+			}
+			if (add)
+			{
+				list.Add(moves);
+				double pro = (proT + proU) * 100.0;
+				Console.Write($"\r{pro:N4} %");
+			}
 		}
 
-		int Zero()
+		#endregion save
+
+		#region load
+
+		public bool LoadFromFile(string p)
 		{
-			int z = 0;
-			foreach (CRec rec in recList)
-				if (rec.mat == 0)
-					z++;
-			return z;
+			if (String.IsNullOrEmpty(p))
+				return false;
+			stopWatch.Restart();
+			recList.Clear();
+			bool result = AddFile(p);
+			stopWatch.Stop();
+			TimeSpan ts = stopWatch.Elapsed;
+			Console.WriteLine($"info string Loaded in {ts.Seconds}.{ts.Milliseconds} seconds");
+			return result;
 		}
+
+		public bool LoadFromFile()
+		{
+			return LoadFromFile(path);
+		}
+
+		public bool AddFile(string p)
+		{
+			bool result = true;
+			if (!File.Exists(p) && (!File.Exists(p + ".tmp")))
+				return true;
+			string ext = Path.GetExtension(p).ToLower();
+			if (ext == defExt)
+				result = AddFileTnt(p);
+			else if (ext == ".uci")
+				AddFileUci(p);
+			else if (ext == ".pgn")
+				AddFilePgn(p);
+			Console.WriteLine($"info string moves {recList.Count:N0}");
+			return result;
+		}
+
+		bool AddFileTnt(string p)
+		{
+			path = p;
+			string pt = p + ".tmp";
+			try
+			{
+				if (!File.Exists(p) && File.Exists(pt))
+					File.Move(pt, p);
+			}
+			catch
+			{
+				return false;
+			}
+			try
+			{
+				using (FileStream fs = File.Open(p, FileMode.Open, FileAccess.Read, FileShare.Read))
+				{
+					using (BinaryReader reader = new BinaryReader(fs))
+					{
+						string headerBst = GetHeader();
+						string headerCur = reader.ReadString();
+						if (!Program.isIv && (headerCur != headerBst))
+							Console.WriteLine($"This program only supports version  [{headerBst}]");
+						else
+						{
+							while (reader.BaseStream.Position != reader.BaseStream.Length)
+							{
+								ulong m = ReadUInt64(reader);
+								ulong b = ReadUInt64(reader);
+								ulong w = ReadUInt64(reader);
+								CRec rec = new CRec
+								{
+									tnt = MbwToTnt(m, b, w),
+									mat = ReadInt16(reader),
+									age = reader.ReadByte()
+								};
+								recList.Add(rec);
+							}
+						}
+					}
+				}
+			}
+			catch
+			{
+				return false;
+			}
+			return true;
+		}
+
+		void AddFileUci(string p)
+		{
+			string[] lines = File.ReadAllLines(p);
+			foreach (string uci in lines)
+				AddUci(uci, out _);
+		}
+
+		void AddFilePgn(string p)
+		{
+			List<string> listPgn = File.ReadAllLines(p).ToList();
+			string movesUci = String.Empty;
+			chess.SetFen();
+			foreach (string m in listPgn)
+			{
+				string cm = m.Trim();
+				if (String.IsNullOrEmpty(cm))
+					continue;
+				if (cm[0] == '[')
+					continue;
+				cm = Regex.Replace(cm, @"\.(?! |$)", ". ");
+				if (cm.StartsWith("1. "))
+				{
+					AddUci(movesUci, out _);
+					ShowMoves();
+					movesUci = String.Empty;
+					chess.SetFen();
+				}
+				string[] arrMoves = cm.Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
+				foreach (string san in arrMoves)
+				{
+					if (Char.IsDigit(san[0]))
+						continue;
+					string umo = chess.SanToUmo(san);
+					if (umo == String.Empty)
+					{
+						errors++;
+						break;
+					}
+					movesUci += $" {umo}";
+					int emo = chess.UmoToEmo(umo);
+					chess.MakeMove(emo);
+				}
+			}
+			AddUci(movesUci, out _);
+			ShowMoves();
+		}
+
+		#endregion load
 
 	}
 }
