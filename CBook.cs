@@ -23,6 +23,204 @@ namespace NSProgram
 		public CRapLog log = new CRapLog();
 		readonly Stopwatch stopWatch = new Stopwatch();
 
+		#region file tnt
+
+		bool AddFileTnt(string p)
+		{
+			path = p;
+			string pt = p + ".tmp";
+			try
+			{
+				if (!File.Exists(p) && File.Exists(pt))
+					File.Move(pt, p);
+			}
+			catch
+			{
+				return false;
+			}
+			if (!File.Exists(p))
+				return true;
+			try
+			{
+				using (FileStream fs = File.Open(p, FileMode.Open, FileAccess.Read, FileShare.Read))
+				using (BinaryReader reader = new BinaryReader(fs))
+				{
+					string headerBst = GetHeader();
+					string headerCur = reader.ReadString();
+					if (!Program.isIv && (headerCur != headerBst))
+						Console.WriteLine($"This program only supports version  [{headerBst}]");
+					else
+					{
+						while (reader.BaseStream.Position != reader.BaseStream.Length)
+						{
+							ulong m = ReadUInt64(reader);
+							ulong b = ReadUInt64(reader);
+							ulong w = ReadUInt64(reader);
+							CRec rec = new CRec
+							{
+								tnt = MbwToTnt(m, b, w),
+								mat = ReadInt16(reader),
+								age = reader.ReadByte()
+							};
+							recList.Add(rec);
+						}
+					}
+				}
+			}
+			catch
+			{
+				return false;
+			}
+			return true;
+		}
+
+		public bool SaveToTnt(string p)
+		{
+			if (string.IsNullOrEmpty(p))
+				return false;
+			string pt = p + ".tmp";
+			RefreshAge();
+			int maxAge = GetMaxAge();
+			Program.deleted = 0;
+			if (maxRecords > 0)
+				Program.deleted = recList.Count - maxRecords;
+			else if (maxAge == 0xff)
+				Program.deleted = AgeAvg() >> 5;
+			if (Program.deleted > 0)
+				Delete(Program.deleted);
+			try
+			{
+				using (FileStream fs = File.Open(pt, FileMode.Create, FileAccess.Write, FileShare.None))
+				{
+					using (BinaryWriter writer = new BinaryWriter(fs))
+					{
+						string lastTnt = String.Empty;
+						recList.SortTnt();
+						writer.Write(GetHeader());
+						foreach (CRec rec in recList)
+						{
+							if (rec.tnt == lastTnt)
+							{
+								Program.deleted++;
+								continue;
+							}
+							if (rec.age < maxAge)
+								rec.age++;
+							TntToMbw(rec.tnt, out ulong m, out ulong b, out ulong w);
+							WriteUInt64(writer, m);
+							WriteUInt64(writer, b);
+							WriteUInt64(writer, w);
+							WriteInt16(writer, rec.mat);
+							writer.Write(rec.age);
+							lastTnt = rec.tnt;
+						}
+					}
+				}
+			}
+			catch
+			{
+				return false;
+			}
+			try
+			{
+				if (File.Exists(p) && File.Exists(pt))
+					File.Delete(p);
+			}
+			catch
+			{
+				return false;
+			}
+			try
+			{
+				if (!File.Exists(p) && File.Exists(pt))
+					File.Move(pt, p);
+			}
+			catch
+			{
+				return false;
+			}
+			if (Program.isLog && (maxAge > 0))
+				log.Add($"book {recList.Count:N0} added {Program.added} updated {Program.updated} deleted {Program.deleted:N0} max {maxAge} zero {Zero()}");
+			return true;
+		}
+
+		#endregion file tnt
+
+		#region file uci
+
+		bool AddFileUci(string p)
+		{
+			if (!File.Exists(p))
+				return true;
+			string[] lines = File.ReadAllLines(p);
+			foreach (string uci in lines)
+				AddUci(uci, out _);
+			return true;
+		}
+
+		public bool SaveToUci(string p)
+		{
+			if (string.IsNullOrEmpty(p))
+				return false;
+			List<string> sl = GetGames();
+			using (FileStream fs = File.Open(p, FileMode.Create, FileAccess.Write, FileShare.None))
+			using (StreamWriter sw = new StreamWriter(fs))
+			{
+				foreach (String uci in sl)
+					sw.WriteLine(uci);
+			}
+			return true;
+		}
+
+		#endregion file uci
+
+		#region file pgn
+
+		bool AddFilePgn(string p)
+		{
+			if (!File.Exists(p))
+				return true;
+			List<string> listPgn = File.ReadAllLines(p).ToList();
+			string movesUci = String.Empty;
+			chess.SetFen();
+			foreach (string m in listPgn)
+			{
+				string cm = m.Trim();
+				if (String.IsNullOrEmpty(cm))
+					continue;
+				if (cm[0] == '[')
+					continue;
+				cm = Regex.Replace(cm, @"\.(?! |$)", ". ");
+				if (cm.StartsWith("1. "))
+				{
+					AddUci(movesUci, out _);
+					ShowMoves();
+					movesUci = String.Empty;
+					chess.SetFen();
+				}
+				string[] arrMoves = cm.Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
+				foreach (string san in arrMoves)
+				{
+					if (Char.IsDigit(san[0]))
+						continue;
+					string umo = chess.SanToUmo(san);
+					if (umo == String.Empty)
+					{
+						errors++;
+						break;
+					}
+					movesUci += $" {umo}";
+					int emo = chess.UmoToEmo(umo);
+					chess.MakeMove(emo);
+				}
+			}
+			AddUci(movesUci, out _);
+			ShowMoves();
+			return true;
+		}
+
+		#endregion file pgn
+
 		public void ShowMoves(bool last = false)
 		{
 			Console.Write($"\r{recList.Count} moves");
@@ -436,7 +634,7 @@ namespace NSProgram
 			return el;
 		}
 
-		public CEmoList GetEmoList(short mat=short.MaxValue, int repetytion = -1)
+		public CEmoList GetEmoList(short mat = short.MaxValue, int repetytion = -1)
 		{
 			CEmoList emoList = new CEmoList();
 			List<int> moves = chess.GenerateValidMoves(out _, repetytion);
@@ -446,7 +644,7 @@ namespace NSProgram
 				string tnt = chess.GetTnt();
 				CRec rec = recList.GetRec(tnt);
 				if (rec != null)
-					if (Math.Abs(rec.mat)<=mat)
+					if (Math.Abs(rec.mat) <= mat)
 					{
 						CEmo emo = new CEmo(m, rec);
 						emoList.Add(emo);
@@ -601,18 +799,6 @@ namespace NSProgram
 				SaveToFile(path);
 		}
 
-		public bool SaveToUci(string p)
-		{
-			List<string> sl = GetGames();
-			FileStream fs = File.Open(p, FileMode.Create, FileAccess.Write, FileShare.None);
-			using (StreamWriter sw = new StreamWriter(fs))
-			{
-				foreach (String uci in sl)
-					sw.WriteLine(uci);
-			}
-			return true;
-		}
-
 		public bool SaveToTxt(string p)
 		{
 			int line = 0;
@@ -627,74 +813,6 @@ namespace NSProgram
 				}
 			}
 			Console.WriteLine();
-			return true;
-		}
-
-		public bool SaveToTnt(string p)
-		{
-			string pt = p + ".tmp";
-			RefreshAge();
-			int maxAge = GetMaxAge();
-			Program.deleted = 0;
-			if (maxRecords > 0)
-				Program.deleted = recList.Count - maxRecords;
-			else if (maxAge == 0xff)
-				Program.deleted = AgeAvg() >> 5;
-			if (Program.deleted > 0)
-				Delete(Program.deleted);
-			try
-			{
-				using (FileStream fs = File.Open(pt, FileMode.Create, FileAccess.Write, FileShare.None))
-				{
-					using (BinaryWriter writer = new BinaryWriter(fs))
-					{
-						string lastTnt = String.Empty;
-						recList.SortTnt();
-						writer.Write(GetHeader());
-						foreach (CRec rec in recList)
-						{
-							if (rec.tnt == lastTnt)
-							{
-								Program.deleted++;
-								continue;
-							}
-							if (rec.age < maxAge)
-								rec.age++;
-							TntToMbw(rec.tnt, out ulong m, out ulong b, out ulong w);
-							WriteUInt64(writer, m);
-							WriteUInt64(writer, b);
-							WriteUInt64(writer, w);
-							WriteInt16(writer, rec.mat);
-							writer.Write(rec.age);
-							lastTnt = rec.tnt;
-						}
-					}
-				}
-			}
-			catch
-			{
-				return false;
-			}
-			try
-			{
-				if (File.Exists(p) && File.Exists(pt))
-					File.Delete(p);
-			}
-			catch
-			{
-				return false;
-			}
-			try
-			{
-				if (!File.Exists(p) && File.Exists(pt))
-					File.Move(pt, p);
-			}
-			catch
-			{
-				return false;
-			}
-			if (Program.isLog && (maxAge > 0))
-				log.Add($"book {recList.Count:N0} added {Program.added} updated {Program.updated} deleted {Program.deleted:N0} max {maxAge} zero {Zero()}");
 			return true;
 		}
 
@@ -734,23 +852,6 @@ namespace NSProgram
 			Console.WriteLine();
 			return true;
 		}
-
-		/*List<string> GetGames()
-		{
-			List<string> sl = new List<string>();
-			if (branchList.Start())
-				do
-				{
-					string uci = branchList.GetUci();
-					sl.Add(uci);
-					Console.Write($"\rsearch {branchList.GetProcent():N4}%");
-				} while (branchList.BlNext());
-			double pro = (branchList.used * 100.0) / recList.Count;
-			Console.WriteLine();
-			Console.WriteLine($"games {sl.Count:N0} used {branchList.used:N0} ({pro:N2}%)");
-			sl.Sort();
-			return sl;
-		}*/
 
 		List<string> GetGames()
 		{
@@ -799,134 +900,33 @@ namespace NSProgram
 
 		#region load
 
-		public bool LoadFromFile(string p)
+		public bool LoadFromFile(string p = "")
 		{
 			if (String.IsNullOrEmpty(p))
-				return false;
+				if (String.IsNullOrEmpty(path))
+					return false;
+				else
+					return LoadFromFile(path);
 			stopWatch.Restart();
 			recList.Clear();
 			bool result = AddFile(p);
 			stopWatch.Stop();
 			TimeSpan ts = stopWatch.Elapsed;
-			Console.WriteLine($"info string Loaded in {ts.Seconds}.{ts.Milliseconds} seconds");
+			Console.WriteLine($"info string Loaded in {ts.TotalSeconds:N2} seconds");
 			return result;
-		}
-
-		public bool LoadFromFile()
-		{
-			return LoadFromFile(path);
 		}
 
 		public bool AddFile(string p)
 		{
-			bool result = true;
-			if (!File.Exists(p) && (!File.Exists(p + ".tmp")))
-				return true;
 			string ext = Path.GetExtension(p).ToLower();
 			if (ext == defExt)
-				result = AddFileTnt(p);
+				return AddFileTnt(p);
 			else if (ext == ".uci")
-				AddFileUci(p);
+				return AddFileUci(p);
 			else if (ext == ".pgn")
-				AddFilePgn(p);
+				return AddFilePgn(p);
 			Console.WriteLine($"info string moves {recList.Count:N0}");
-			return result;
-		}
-
-		bool AddFileTnt(string p)
-		{
-			path = p;
-			string pt = p + ".tmp";
-			try
-			{
-				if (!File.Exists(p) && File.Exists(pt))
-					File.Move(pt, p);
-			}
-			catch
-			{
-				return false;
-			}
-			try
-			{
-				using (FileStream fs = File.Open(p, FileMode.Open, FileAccess.Read, FileShare.Read))
-				{
-					using (BinaryReader reader = new BinaryReader(fs))
-					{
-						string headerBst = GetHeader();
-						string headerCur = reader.ReadString();
-						if (!Program.isIv && (headerCur != headerBst))
-							Console.WriteLine($"This program only supports version  [{headerBst}]");
-						else
-						{
-							while (reader.BaseStream.Position != reader.BaseStream.Length)
-							{
-								ulong m = ReadUInt64(reader);
-								ulong b = ReadUInt64(reader);
-								ulong w = ReadUInt64(reader);
-								CRec rec = new CRec
-								{
-									tnt = MbwToTnt(m, b, w),
-									mat = ReadInt16(reader),
-									age = reader.ReadByte()
-								};
-								recList.Add(rec);
-							}
-						}
-					}
-				}
-			}
-			catch
-			{
-				return false;
-			}
-			return true;
-		}
-
-		void AddFileUci(string p)
-		{
-			string[] lines = File.ReadAllLines(p);
-			foreach (string uci in lines)
-				AddUci(uci, out _);
-		}
-
-		void AddFilePgn(string p)
-		{
-			List<string> listPgn = File.ReadAllLines(p).ToList();
-			string movesUci = String.Empty;
-			chess.SetFen();
-			foreach (string m in listPgn)
-			{
-				string cm = m.Trim();
-				if (String.IsNullOrEmpty(cm))
-					continue;
-				if (cm[0] == '[')
-					continue;
-				cm = Regex.Replace(cm, @"\.(?! |$)", ". ");
-				if (cm.StartsWith("1. "))
-				{
-					AddUci(movesUci, out _);
-					ShowMoves();
-					movesUci = String.Empty;
-					chess.SetFen();
-				}
-				string[] arrMoves = cm.Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
-				foreach (string san in arrMoves)
-				{
-					if (Char.IsDigit(san[0]))
-						continue;
-					string umo = chess.SanToUmo(san);
-					if (umo == String.Empty)
-					{
-						errors++;
-						break;
-					}
-					movesUci += $" {umo}";
-					int emo = chess.UmoToEmo(umo);
-					chess.MakeMove(emo);
-				}
-			}
-			AddUci(movesUci, out _);
-			ShowMoves();
+			return false;
 		}
 
 		#endregion load
