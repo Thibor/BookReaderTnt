@@ -18,13 +18,12 @@ To use this program you need install  <a href="https://dotnet.microsoft.com/down
 
 ## Console commands
 
-**book load** [filename].[tnt|mem|uci|pgn|fen] - clear and add<br/>
-**book save** [filename].[tnt|mem|uci] - save book to the file<br/>
-**book addfile** [filename].[mem|pgn|uci|fen] - adds moves from another book<br/>
+**book load** [filename].[tnt|uci|pgn|fen] - clear and add<br/>
+**book save** [filename].[tnt|uci|pgn|txt] - save book to the file<br/>
+**book addfile** [filename].[tnt|pgn|uci|fen] - adds moves from another book<br/>
 **book delete** [number x] - delete x moves from the book<br/>
 **book clear** - clear all moves from the book<br/>
 **book adduci** [uci] - adds a sequence of moves in uci format<br/>
-**book addfen** [fen] - add position in fen format<br/>
 **book moves** [uci] - make sequence of moves in uci format and shows possible continuations<br/>
 **book structure** - show structure of current book<br/>
 **book getoption** - show options<br/>

@@ -219,7 +219,79 @@ namespace NSProgram
 			return true;
 		}
 
+		public bool SaveToPgn(string p)
+		{
+			List<string> sl = GetGames();
+			int line = 0;
+			FileStream fs = File.Open(p, FileMode.Create, FileAccess.Write, FileShare.None);
+			using (StreamWriter sw = new StreamWriter(fs))
+			{
+				foreach (String uci in sl)
+				{
+					string[] arrMoves = uci.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+					chess.SetFen();
+					string pgn = String.Empty;
+					foreach (string umo in arrMoves)
+					{
+						string san = chess.UmoToSan(umo);
+						if (san == String.Empty)
+							break;
+						int number = (chess.g_moveNumber >> 1) + 1;
+						if (chess.whiteTurn)
+							pgn += $" {number}. {san}";
+						else
+							pgn += $" {san}";
+						int emo = chess.UmoToEmo(umo);
+						chess.MakeMove(emo);
+					}
+					sw.WriteLine();
+					sw.WriteLine("[White \"White\"]");
+					sw.WriteLine("[Black \"Black\"]");
+					sw.WriteLine();
+					sw.WriteLine(pgn.Trim());
+					Console.Write($"\rgames {++line}");
+				}
+			}
+			Console.WriteLine();
+			return true;
+		}
+
 		#endregion file pgn
+
+		#region file fen
+
+		bool AddFileFen(string p)
+		{
+			if (!File.Exists(p))
+				return true;
+			string[] lines = File.ReadAllLines(p);
+			foreach (string fen in lines)
+				AddFen(fen);
+			return true;
+		}
+
+		#endregion file fen
+
+		#region file txt
+
+		public bool SaveToTxt(string p)
+		{
+			int line = 0;
+			FileStream fs = File.Open(p, FileMode.Create, FileAccess.Write, FileShare.None);
+			using (StreamWriter sw = new StreamWriter(fs))
+			{
+				foreach (CRec rec in recList)
+				{
+					string l = $"{rec.tnt}{rec.mat:+#;-#;+0}";
+					sw.WriteLine(l);
+					Console.Write($"\rRecord {++line}");
+				}
+			}
+			Console.WriteLine();
+			return true;
+		}
+
+		#endregion file txt
 
 		public void ShowMoves(bool last = false)
 		{
@@ -267,10 +339,8 @@ namespace NSProgram
 		{
 			if (chess.SetFen(fen))
 			{
-				CRec rec = new CRec
-				{
-					tnt = chess.GetTnt()
-				};
+				CRec rec = new CRec();
+				rec.tnt = chess.GetTnt();
 				recList.AddRec(rec);
 				return true;
 			}
@@ -779,7 +849,7 @@ namespace NSProgram
 
 		#region save
 
-		public bool SaveToFile(string p)
+		public bool SaveToFile(string p = "")
 		{
 			string ext = Path.GetExtension(p).ToLower();
 			if (ext == defExt)
@@ -791,66 +861,6 @@ namespace NSProgram
 			if (ext == ".txt")
 				return SaveToTxt(p);
 			return false;
-		}
-
-		public void SaveToFile()
-		{
-			if (!string.IsNullOrEmpty(path))
-				SaveToFile(path);
-		}
-
-		public bool SaveToTxt(string p)
-		{
-			int line = 0;
-			FileStream fs = File.Open(p, FileMode.Create, FileAccess.Write, FileShare.None);
-			using (StreamWriter sw = new StreamWriter(fs))
-			{
-				foreach (CRec rec in recList)
-				{
-					string l = $"{rec.tnt}{rec.mat:+#;-#;+0}";
-					sw.WriteLine(l);
-					Console.Write($"\rRecord {++line}");
-				}
-			}
-			Console.WriteLine();
-			return true;
-		}
-
-		public bool SaveToPgn(string p)
-		{
-			List<string> sl = GetGames();
-			int line = 0;
-			FileStream fs = File.Open(p, FileMode.Create, FileAccess.Write, FileShare.None);
-			using (StreamWriter sw = new StreamWriter(fs))
-			{
-				foreach (String uci in sl)
-				{
-					string[] arrMoves = uci.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
-					chess.SetFen();
-					string pgn = String.Empty;
-					foreach (string umo in arrMoves)
-					{
-						string san = chess.UmoToSan(umo);
-						if (san == String.Empty)
-							break;
-						int number = (chess.g_moveNumber >> 1) + 1;
-						if (chess.whiteTurn)
-							pgn += $" {number}. {san}";
-						else
-							pgn += $" {san}";
-						int emo = chess.UmoToEmo(umo);
-						chess.MakeMove(emo);
-					}
-					sw.WriteLine();
-					sw.WriteLine("[White \"White\"]");
-					sw.WriteLine("[Black \"Black\"]");
-					sw.WriteLine();
-					sw.WriteLine(pgn.Trim());
-					Console.Write($"\rgames {++line}");
-				}
-			}
-			Console.WriteLine();
-			return true;
 		}
 
 		List<string> GetGames()
@@ -925,6 +935,8 @@ namespace NSProgram
 				return AddFileUci(p);
 			else if (ext == ".pgn")
 				return AddFilePgn(p);
+			else if (ext == ".fen")
+				return AddFileFen(p);
 			Console.WriteLine($"info string moves {recList.Count:N0}");
 			return false;
 		}

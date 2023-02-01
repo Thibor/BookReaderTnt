@@ -155,12 +155,11 @@ namespace NSProgram
 					string msg = Console.ReadLine().Trim();
 					if (String.IsNullOrEmpty(msg) || (msg == "help") || (msg == "book"))
 					{
-						Console.WriteLine("book load [filename].[mem|pgn|uci|fen] - clear and add moves from file");
-						Console.WriteLine("book save [filename].[mem] - save book to the file");
+						Console.WriteLine("book load [filename].[tnt|pgn|uci|fen] - clear and add moves from file");
+						Console.WriteLine("book save [filename].[tnt|pgn|uci|txt] - save book to the file");
 						Console.WriteLine("book delete [number x] - delete x moves from the book");
 						Console.WriteLine("book addfile [filename].[mem|png|uci|fen] - add moves to the book from file");
 						Console.WriteLine("book adduci [uci] - add moves in uci format to the book");
-						Console.WriteLine("book addfen [fen] - add position in fen format");
 						Console.WriteLine("book clear - clear all moves from the book");
 						Console.WriteLine("book moves [uci] - make sequence of moves in uci format and shows possible continuations");
 						Console.WriteLine("book structure - show structure of current book");
