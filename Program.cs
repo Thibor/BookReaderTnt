@@ -3,32 +3,30 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using RapLog;
 
 namespace NSProgram
 {
 	class Program
 	{
-		/// <summary>
-		/// Book can write log file.
-		/// </summary>
-		public static bool isLog = false;
 		public static int added = 0;
 		public static int updated = 0;
 		public static int deleted = 0;
 		/// <summary>
 		/// Moves added to book per game.
 		/// </summary>
-		public static int bookLimitAdd = 5;
+		public static int bookLimitAdd = 8;
 		/// <summary>
 		/// Limit ply to wrtie.
 		/// </summary>
-		public static int bookLimitW = 32;
+		public static int bookLimitW = 8;
 		/// <summary>
 		/// Limit ply to read.
 		/// </summary>
-		public static int bookLimitR = 0xf;
+		public static int bookLimitR = 8;
 		public static bool isIv = false;
 		public static CBook book = new CBook();
+		public static CRapLog log = new CRapLog(false);
 
 		static void Main(string[] args)
 		{
@@ -74,7 +72,7 @@ namespace NSProgram
 						break;
 					case "-log"://add log
 						ax = ac;
-						isLog = true;
+						log.enabled = true;
 						break;
 					case "-w"://writable
 						ax = ac;
@@ -218,40 +216,43 @@ namespace NSProgram
 									Console.WriteLine("Writing to the file has failed");
 								break;
 							case "getoption":
-								Console.WriteLine($"option name Book file type string default book{CBook.defExt}");
-								Console.WriteLine($"option name Write type check default false");
-								Console.WriteLine($"option name Log type check default false");
-								Console.WriteLine($"option name Limit add moves type spin default {bookLimitAdd} min 0 max 100");
-								Console.WriteLine($"option name Limit read moves type spin default {bookLimitR} min 0 max 100");
-								Console.WriteLine($"option name Limit write moves type spin default {bookLimitW} min 0 max 100");
-								Console.WriteLine($"option name Random moves type spin default {bookRandom} min 0 max 201");
+								Console.WriteLine($"option name book_file type string default book{CBook.defExt}");
+								Console.WriteLine($"option name write type check default false");
+								Console.WriteLine($"option name log type check default false");
+								Console.WriteLine($"option name limit_add_moves type spin default {bookLimitAdd} min 0 max 100");
+								Console.WriteLine($"option name limit_read_moves type spin default {bookLimitR} min 0 max 100");
+								Console.WriteLine($"option name limit_write_moves type spin default {bookLimitW} min 0 max 100");
+								Console.WriteLine($"option name random_moves type spin default {bookRandom} min 0 max 201");
 								Console.WriteLine("optionend");
 								break;
 							case "setoption":
 								switch (uci.GetValue("name", "value").ToLower())
 								{
-									case "book file":
-										SetBookFile(uci.GetValue("value"));
+									case "book_file":
+										bookFile = uci.GetValue("value");
 										break;
 									case "write":
 										isW = uci.GetValue("value") == "true";
 										break;
 									case "log":
-										isLog = uci.GetValue("value") == "true";
+										log.enabled = uci.GetValue("value") == "true";
 										break;
-									case "limit add":
+									case "limit_add_moves":
 										bookLimitAdd = uci.GetInt("value");
 										break;
-									case "limit read":
+									case "limit_read_moves":
 										bookLimitR = uci.GetInt("value");
 										break;
-									case "limit write":
+									case "limit_write_moves":
 										bookLimitW = uci.GetInt("value");
 										break;
-									case "Random":
+									case "random_moves":
 										bookRandom = uci.GetInt("value");
 										break;
 								}
+								break;
+							case "optionend":
+								SetBookFile(bookFile);
 								break;
 							default:
 								Console.WriteLine($"Unknown command [{uci.tokens[1]}]");
@@ -280,7 +281,7 @@ namespace NSProgram
 									updated = 0;
 									deleted = 0;
 								}
-								if (bookLoaded && bookWrite && book.chess.Is2ToEnd(out string myMove, out string enMove))
+								if (bookWrite && book.chess.Is2ToEnd(out string myMove, out string enMove))
 								{
 									bookChanged = true;
 									bookUpdate = false;
@@ -332,13 +333,13 @@ namespace NSProgram
 								else
 									engineProcess.StandardInput.WriteLine(msg);
 							}
-							if (bookChanged)
-							{
-								bookChanged = false;
-								book.SaveToFile();
-							}
 							break;
 					}
+				}
+				if (isW && bookChanged)
+				{
+					bookChanged = false;
+					book.SaveToFile();
 				}
 			} while (uci.command != "quit");
 

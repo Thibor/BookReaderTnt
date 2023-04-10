@@ -139,7 +139,7 @@ namespace NSProgram
 			{
 				return false;
 			}
-			if (Program.isLog && (maxAge > 0))
+			if (maxAge > 0)
 				log.Add($"book {recList.Count:N0} added {Program.added} updated {Program.updated} deleted {Program.deleted:N0} max {maxAge} zero {Zero()}");
 			return true;
 		}
@@ -851,6 +851,11 @@ namespace NSProgram
 
 		public bool SaveToFile(string p = "")
 		{
+			if (string.IsNullOrEmpty(p))
+				if (string.IsNullOrEmpty(path))
+					return false;
+				else
+					SaveToFile(path);
 			string ext = Path.GetExtension(p).ToLower();
 			if (ext == defExt)
 				return SaveToTnt(p);

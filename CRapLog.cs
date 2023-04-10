@@ -8,16 +8,29 @@ namespace RapLog
 {
 	public class CRapLog
 	{
-		bool addDate;
-		int max;
-		string path;
+		public bool enabled = true;
+		public bool addDate = true;
+		public int max = 100;
+		public string path;
 
-		public CRapLog(string p = "",int m = 100,bool a = true)
+		public CRapLog(bool enabled)
+		{
+			this.enabled = enabled;
+			SetPath();
+		}
+
+		public CRapLog(string path = "",int max = 100,bool addDate = true)
+		{
+			this.max = max;
+			this.addDate = addDate;
+			SetPath(path);
+		}
+
+		void SetPath(string p = "")
 		{
 			path = p;
-			max = m;
-			addDate = a;
-			if(path == String.Empty) {
+			if (String.IsNullOrEmpty(path))
+			{
 				string name = Assembly.GetExecutingAssembly().GetName().Name + ".log";
 				path = new FileInfo(name).FullName.ToString();
 			}
@@ -25,17 +38,40 @@ namespace RapLog
 
 		public void Add(string m)
 		{
-			List<string> list = new List<string>();
-			if (File.Exists(path))
-				list = File.ReadAllLines(path).ToList();
+			if (!enabled)
+				return;
+			List<string> list = List();
 			if (addDate)
 				list.Insert(0, $"{DateTime.Now} {m}");
 			else
 				list.Add(m);
 			int count = list.Count - max;
 			if ((count > 0) && (max > 0))
-				list.RemoveRange(100, count);
+				list.RemoveRange(max, count);
 			File.WriteAllLines(path, list);
+		}
+
+		public void Add(bool v)
+		{
+			Add(v.ToString());
+		}
+
+		public void Add(int v)
+		{
+			Add(v.ToString());
+		}
+
+		public void Add(double v)
+		{
+			Add(v.ToString());
+		}
+
+		public List<string> List()
+		{
+			List<string> list = new List<string>();
+			if (File.Exists(path))
+				list = File.ReadAllLines(path).ToList();
+			return list;
 		}
 
 	}
