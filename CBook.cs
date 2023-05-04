@@ -236,9 +236,8 @@ namespace NSProgram
 						string san = chess.UmoToSan(umo);
 						if (san == String.Empty)
 							break;
-						int number = (chess.g_moveNumber >> 1) + 1;
-						if (chess.whiteTurn)
-							pgn += $" {number}. {san}";
+						if (chess.WhiteTurn)
+							pgn += $" {chess.MoveNumber}. {san}";
 						else
 							pgn += $" {san}";
 						int emo = chess.UmoToEmo(umo);
