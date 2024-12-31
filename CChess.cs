@@ -115,6 +115,7 @@ namespace NSChess
 		public CChess()
 		{
 			Initialize();
+			SetFen();
 		}
 
 		public void Initialize()
@@ -145,16 +146,13 @@ namespace NSChess
 
 		#region info
 
-		public bool IsCapture(int emo)
-		{
-			int to = (emo >> 8) & 0xff;
-			return (board[to] & 0xf) > 0;
-		}
-
-		public bool IsCastling(int emo)
-		{
-			return (emo & maskCastle) > 0;
-		}
+		public int SquareX(int sq) => sq & 7;
+		public int SquareY(int sq) => sq >> 3;
+		public int MoveFr(int emo) => emo & 0x3f;
+		public int MoveTo(int emo) => (emo >> 8) & 0x3f;
+		public bool MoveWhite(int emo) => (board[MoveFr(emo)] & colorWhite) > 0;
+		public bool MoveIsCastling(int emo) => (emo & maskCastle) > 0;
+		public bool MoveIsCapture(int emo) => (board[MoveTo(emo)] & 0xf) > 0;
 
 		public bool IsCheck(int emo)
 		{
@@ -395,7 +393,7 @@ namespace NSChess
 
 		public string GetFenBase()
 		{
-			string result = "";
+			string result = String.Empty;
 			string[] arr = { " ", "p", "n", "b", "r", "q", "k", " " };
 			for (int y = 0; y < 8; y++)
 			{

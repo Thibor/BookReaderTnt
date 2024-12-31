@@ -23,6 +23,11 @@ namespace NSProgram
 		public CRapLog log = new CRapLog();
 		readonly Stopwatch stopWatch = new Stopwatch();
 
+		public string Title()
+		{
+            return $"{name} {version}";
+        }
+
 		#region file tnt
 
 		bool AddFileTnt(string p)
@@ -257,20 +262,6 @@ namespace NSProgram
 
 		#endregion file pgn
 
-		#region file fen
-
-		bool AddFileFen(string p)
-		{
-			if (!File.Exists(p))
-				return true;
-			string[] lines = File.ReadAllLines(p);
-			foreach (string fen in lines)
-				AddFen(fen);
-			return true;
-		}
-
-		#endregion file fen
-
 		#region file txt
 
 		public bool SaveToTxt(string p)
@@ -332,18 +323,6 @@ namespace NSProgram
 		string GetHeader()
 		{
 			return $"{name} {version}";
-		}
-
-		public bool AddFen(string fen)
-		{
-			if (chess.SetFen(fen))
-			{
-				CRec rec = new CRec();
-				rec.tnt = chess.GetTnt();
-				recList.AddRec(rec);
-				return true;
-			}
-			return false;
 		}
 
 		public int UpdateBack(string moves)
@@ -753,7 +732,7 @@ namespace NSProgram
 			return umo;
 		}
 
-		public void ShowLevel(int lev, int len)
+		public void ShowLevel(string frm,int lev)
 		{
 			int ageMax = AgeMax();
 			int ageMin = AgeMin();
@@ -763,29 +742,29 @@ namespace NSProgram
 				del = ageCou - ageMin;
 			if (ageCou > ageMax)
 				del = ageCou - ageMax;
-			Console.WriteLine("{0,4} {1," + len + "} {2," + len + "}", lev, arrAge[lev], del);
+			Console.WriteLine(frm, lev, arrAge[lev], del);
 		}
 
 		public void InfoStructure()
 		{
-			int len = recList.Count.ToString().Length;
 			int ageAvg = AgeAvg();
 			int ageMax = AgeMax();
 			int ageMin = AgeMin();
 			int ageDel = AgeDel();
-			Console.WriteLine($"moves {recList.Count:N0} min {ageMin:N0} avg {ageAvg:N0} max {ageMax:N0} delta {ageDel:N0}");
-			Console.WriteLine("{0,4} {1," + len + "} {2," + len + "}", "age", "count", "delta");
-			Console.WriteLine();
+			string frm = "{0,6} {1,6} {2,6}";
+            Console.WriteLine($"moves {recList.Count:N0} min {ageMin:N0} avg {ageAvg:N0} max {ageMax:N0} delta {ageDel:N0}");
+            Console.WriteLine();
+            Console.WriteLine(frm, "age", "count", "delta");
 			RefreshAge();
-			ShowLevel(0, len);
+			ShowLevel(frm,0);
 			for (int n = 1; n < 0xff; n++)
 			{
 				if ((arrAge[n] > ageMax) || (arrAge[n] < ageMin))
-					ShowLevel(n, len);
+					ShowLevel(frm,n);
 				if (arrAge[n] == 0)
 					break;
 			}
-			ShowLevel(255, len);
+			ShowLevel(frm,255);
 		}
 
 		public void InfoMoves(string moves = "")
@@ -800,17 +779,29 @@ namespace NSProgram
 					Console.WriteLine("no moves found");
 				else
 				{
-					Console.WriteLine("id move  mate age");
-					Console.WriteLine();
+					string frm="{0,6} {1,6} {2,6} {3,6}";
+                    Console.WriteLine();
+                    Console.WriteLine(frm,"id", "move",  "mate", "age");
 					int i = 1;
 					foreach (CEmo e in el)
 					{
 						string umo = chess.EmoToUmo(e.emo);
-						Console.WriteLine(String.Format("{0,2} {1,-4} {2,5} {3,3}", i++, umo, e.rec.mat, e.rec.age));
+						Console.WriteLine(frm, i++, umo, e.rec.mat, e.rec.age);
 					}
 				}
 			}
 		}
+
+		public void ShowInfo()
+		{
+            if (recList.Count == 0)
+            {
+                Console.WriteLine("no records");
+                return;
+            }
+            InfoStructure();
+            InfoMoves();
+        }
 
 		public void Update()
 		{
@@ -939,8 +930,6 @@ namespace NSProgram
 				return AddFileUci(p);
 			else if (ext == ".pgn")
 				return AddFilePgn(p);
-			else if (ext == ".fen")
-				return AddFileFen(p);
 			Console.WriteLine($"info string moves {recList.Count:N0}");
 			return false;
 		}
