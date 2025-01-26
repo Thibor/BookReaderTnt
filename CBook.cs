@@ -28,9 +28,16 @@ namespace NSProgram
             return $"{name} {version}";
         }
 
-		#region file tnt
+        public int DeltaRecords()
+        {
+            if (maxRecords == 0)
+                return 0;
+            return recList.Count - maxRecords;
+        }
 
-		bool AddFileTnt(string p)
+        #region file tnt
+
+        bool AddFileTnt(string p)
 		{
 			path = p;
 			string pt = p + ".tmp";
@@ -86,14 +93,10 @@ namespace NSProgram
 			string pt = p + ".tmp";
 			RefreshAge();
 			int maxAge = GetMaxAge();
-			Program.deleted = 0;
-			if (maxRecords > 0)
-				Program.deleted = recList.Count - maxRecords;
-			else if (maxAge == 0xff)
-				Program.deleted = AgeAvg() >> 5;
-			if (Program.deleted > 0)
-				Delete(Program.deleted);
-			try
+            int del = DeltaRecords();
+            if (del > 0)
+                Program.deleted += Delete(del);
+            try
 			{
 				using (FileStream fs = File.Open(pt, FileMode.Create, FileAccess.Write, FileShare.None))
 				{
@@ -442,7 +445,7 @@ namespace NSProgram
 				};
 				if (recList.AddRec(rec))
 					ca++;
-				if ((Program.bookLimitAdd > 0) && (ca >= Program.bookLimitAdd))
+				if ((Program.movesAdd > 0) && (ca >= Program.movesAdd))
 					break;
 			}
 			UpdateBack(moves);

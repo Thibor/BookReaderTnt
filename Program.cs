@@ -15,11 +15,15 @@ namespace NSProgram
 		/// <summary>
 		/// Moves added to book per game.
 		/// </summary>
-		public static int bookLimitAdd = 8;
-		/// <summary>
-		/// Limit ply to wrtie.
-		/// </summary>
-		public static int bookLimitW = 8;
+		public static int movesAdd = 8;
+        /// <summary>
+        /// Moves deleted from the book per game.
+        /// </summary>
+        public static int movesDel = 1;
+        /// <summary>
+        /// Limit ply to wrtie.
+        /// </summary>
+        public static int bookLimitW = 8;
 		/// <summary>
 		/// Limit ply to read.
 		/// </summary>
@@ -106,7 +110,7 @@ namespace NSProgram
 								book.maxRecords = int.TryParse(ac, out int m) ? m : 0;
 								break;
 							case "-add":
-								bookLimitAdd = int.TryParse(ac, out int a) ? a : bookLimitAdd;
+								movesAdd = int.TryParse(ac, out int a) ? a : movesAdd;
 								break;
 							case "-rnd":
 								bookRandom = int.TryParse(ac, out int r) ? r : 0;
@@ -216,9 +220,10 @@ namespace NSProgram
 								Console.WriteLine($"option name book_file type string default book{CBook.defExt}");
 								Console.WriteLine($"option name write type check default false");
 								Console.WriteLine($"option name log type check default false");
-								Console.WriteLine($"option name limit_add_moves type spin default {bookLimitAdd} min 0 max 100");
-								Console.WriteLine($"option name limit_ply_read type spin default {bookLimitR} min 0 max 100");
-								Console.WriteLine($"option name limit_ply_write type spin default {bookLimitW} min 0 max 100");
+								Console.WriteLine($"option name moves_add type spin default {movesAdd} min 0 max 100");
+                                Console.WriteLine($"option name moves_del type spin default {movesDel} min 0 max 100");
+                                Console.WriteLine($"option name ply_read type spin default {bookLimitR} min 0 max 100");
+								Console.WriteLine($"option name ply_write type spin default {bookLimitW} min 0 max 100");
 								Console.WriteLine($"option name random type spin default {bookRandom} min 0 max 201");
 								Console.WriteLine("optionend");
 								break;
@@ -234,13 +239,16 @@ namespace NSProgram
 									case "log":
 										log.enabled = uci.GetValue("value") == "true";
 										break;
-									case "limit_add_moves":
-										bookLimitAdd = uci.GetInt("value");
+									case "moves_add":
+										movesAdd = uci.GetInt("value");
 										break;
-									case "limit_ply_read":
+                                    case "moves_del":
+                                        movesDel = uci.GetInt("value");
+                                        break;
+                                    case "ply_read":
 										bookLimitR = uci.GetInt("value");
 										break;
-									case "limit_ply_write":
+									case "ply_write":
 										bookLimitW = uci.GetInt("value");
 										break;
 									case "random":
@@ -286,7 +294,9 @@ namespace NSProgram
 									movesUci.Add(myMove);
 									movesUci.Add(enMove);
 									added += book.AddUciMate(movesUci, movesUci.Count);
-								}
+                                    if (book.DeltaRecords() == 0)
+                                        deleted += book.Delete(movesDel);
+                                }
 							}
 							break;
 						case "go":
@@ -296,7 +306,7 @@ namespace NSProgram
 							if (move != String.Empty)
 							{
 								Console.WriteLine($"bestmove {move}");
-								if (bookLoaded && isW && String.IsNullOrEmpty(lastFen) && (emptyRow > 0) && (emptyRow < bookLimitAdd))
+								if (bookLoaded && isW && String.IsNullOrEmpty(lastFen) && (emptyRow > 0) && (emptyRow < movesAdd))
 								{
 									bookChanged = true;
 									added += book.AddUci(lastMoves,out _);
@@ -352,7 +362,7 @@ namespace NSProgram
 					if (isW)
 						Console.WriteLine($"info string write on");
 					if (isInfo)
-						book.InfoMoves();
+						book.ShowInfo();
 				}
 				else
 					isW = false;
