@@ -23,19 +23,25 @@ namespace NSProgram
         /// <summary>
         /// Limit ply to wrtie.
         /// </summary>
-        public static int bookLimitW = 8;
+        public static int plyWrite = 8;
 		/// <summary>
 		/// Limit ply to read.
 		/// </summary>
-		public static int bookLimitR = 8;
-		public static bool isIv = false;
-		public static CBook book = new CBook();
+		public static int plyRead = 8;
+        /// <summary>
+        /// Ignore version.
+        /// </summary>
+        public static bool isIv = false;
+		/// <summary>
+		/// Count records in the book.
+		/// </summary>
+		public static int bookCount = 0;
+        public static CBook book = new CBook();
 		public static CRapLog log = new CRapLog(false);
 
 		static void Main(string[] args)
 		{
 			bool bookChanged = false;
-			bool bookUpdate = false;
 			bool bookWrite = false;
 			bool isInfo = false;
 			/// <summary>
@@ -116,10 +122,10 @@ namespace NSProgram
 								bookRandom = int.TryParse(ac, out int r) ? r : 0;
 								break;
 							case "-lr":
-								bookLimitR = int.TryParse(ac, out int lr) ? lr : 0;
+								plyRead = int.TryParse(ac, out int lr) ? lr : 0;
 								break;
 							case "-lw":
-								bookLimitW = int.TryParse(ac, out int lw) ? lw : 0;
+								plyWrite = int.TryParse(ac, out int lw) ? lw : 0;
 								break;
 						}
 						break;
@@ -147,8 +153,8 @@ namespace NSProgram
 			if (bookLoaded && isW)
 			{
 				bookRandom = 0;
-				bookLimitR = 0;
-				bookLimitW = 0;
+				plyRead = 0;
+				plyWrite = 0;
 			}
 			do
 			{
@@ -183,7 +189,7 @@ namespace NSProgram
 								else Console.WriteLine("File not found");
 								break;
 							case "adduci":
-								book.AddUci(uci.GetValue("adduci"),out _);
+								book.AddUci(uci.GetValue("adduci"));
 								Console.WriteLine($"{book.recList.Count - count:N0} moves have been added");
 								break;
 							case "clear":
@@ -200,9 +206,6 @@ namespace NSProgram
 								break;
 							case "moves":
 								book.InfoMoves(uci.GetValue("moves"));
-								break;
-							case "structure":
-								book.InfoStructure();
 								break;
                             case "info":
                                 book.ShowInfo();
@@ -222,8 +225,8 @@ namespace NSProgram
 								Console.WriteLine($"option name log type check default false");
 								Console.WriteLine($"option name moves_add type spin default {movesAdd} min 0 max 100");
                                 Console.WriteLine($"option name moves_del type spin default {movesDel} min 0 max 100");
-                                Console.WriteLine($"option name ply_read type spin default {bookLimitR} min 0 max 100");
-								Console.WriteLine($"option name ply_write type spin default {bookLimitW} min 0 max 100");
+                                Console.WriteLine($"option name ply_read type spin default {plyRead} min 0 max 100");
+								Console.WriteLine($"option name ply_write type spin default {plyWrite} min 0 max 100");
 								Console.WriteLine($"option name random type spin default {bookRandom} min 0 max 201");
 								Console.WriteLine("optionend");
 								break;
@@ -246,10 +249,10 @@ namespace NSProgram
                                         movesDel = uci.GetInt("value");
                                         break;
                                     case "ply_read":
-										bookLimitR = uci.GetInt("value");
+										plyRead = uci.GetInt("value");
 										break;
 									case "ply_write":
-										bookLimitW = uci.GetInt("value");
+										plyWrite = uci.GetInt("value");
 										break;
 									case "random":
 										bookRandom = uci.GetInt("value");
@@ -276,7 +279,6 @@ namespace NSProgram
 								if (book.chess.halfMove < 2)
 								{
 									bookChanged = false;
-									bookUpdate = isW;
 									bookWrite = isW;
 									emptyRow = 0;
 									added = 0;
@@ -286,14 +288,13 @@ namespace NSProgram
 								if (bookWrite && book.chess.Is2ToEnd(out string myMove, out string enMove))
 								{
 									bookChanged = true;
-									bookUpdate = false;
 									string[] am = lastMoves.Split(' ');
 									List<string> movesUci = new List<string>();
 									foreach (string m in am)
 										movesUci.Add(m);
 									movesUci.Add(myMove);
 									movesUci.Add(enMove);
-									added += book.AddUciMate(movesUci, movesUci.Count);
+									added += book.AddUciMate(movesUci);
                                     if (book.DeltaRecords() == 0)
                                         deleted += book.Delete(movesDel);
                                 }
@@ -301,41 +302,25 @@ namespace NSProgram
 							break;
 						case "go":
 							string move = String.Empty;
-							if ((bookLimitR == 0) || (bookLimitR > book.chess.halfMove))
+							if ((plyRead == 0) || (plyRead > book.chess.halfMove))
 								move = book.GetMove(lastFen, lastMoves, bookRandom,ref bookWrite);
-							if (move != String.Empty)
+							if (string.IsNullOrEmpty(move))
 							{
+                                emptyRow++;
+                                if (engineProcess == null)
+                                    Console.WriteLine("enginemove");
+                                else
+                                    engineProcess.StandardInput.WriteLine(msg);
+                            }
+							else {
 								Console.WriteLine($"bestmove {move}");
 								if (bookLoaded && isW && String.IsNullOrEmpty(lastFen) && (emptyRow > 0) && (emptyRow < movesAdd))
 								{
 									bookChanged = true;
-									added += book.AddUci(lastMoves,out _);
+									added += book.AddUci(lastMoves);
+									updated += book.UpdateBack(lastMoves);
 								}
 								emptyRow = 0;
-							}
-							else
-							{
-								emptyRow++;
-								if (bookUpdate)
-								{
-									int up = 0;
-									if (emptyRow == 1)
-										up = book.UpdateBack(lastMoves);
-									else
-									{
-										CRec rec = book.recList.GetRec();
-										up = book.UpdateRec(rec);
-									}
-									if (up > 0)
-									{
-										bookChanged = true;
-										updated += up;
-									}
-								}
-								if (engineProcess == null)
-									Console.WriteLine("enginemove");
-								else
-									engineProcess.StandardInput.WriteLine(msg);
 							}
 							break;
 					}

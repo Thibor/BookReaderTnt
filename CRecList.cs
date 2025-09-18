@@ -6,7 +6,7 @@ namespace NSProgram
 	class CRec
 	{
 		public short mat = 0;
-		public byte age = 0;
+		public int index = 0;
 		public string tnt = String.Empty;
 
 		public double GetValue() {
@@ -28,7 +28,7 @@ namespace NSProgram
 				CRec r = this[index];
 				if (r.tnt == rec.tnt)
 				{
-					r.age = rec.age;
+					r.index = rec.index;
 					r.mat = rec.mat;
 					return false;
 				}
@@ -42,16 +42,16 @@ namespace NSProgram
 		{
 			if (count <= 0)
 				return 0;
-			int c = Count;
+			int oldC = Count;
 			if (count >= Count)
 				Clear();
 			else
 			{
-				SortAge();
-				RemoveRange(Count - count, count);
+				SortIndex();
+				RemoveRange(0,count);
 				SortTnt();
 			}
-			return c - Count;
+			return oldC - Count;
 		}
 
 		public int FindTnt(string tnt)
@@ -91,32 +91,6 @@ namespace NSProgram
 			return null;
 		}
 
-		public void DelTnt(string tnt)
-		{
-			if (IsTnt(tnt, out int index))
-				RemoveAt(index);
-		}
-
-		public bool IsTnt(string tnt,out int index)
-		{
-			index = FindTnt(tnt);
-			if (index < Count)
-				return this[index].tnt == tnt;
-			return false;
-		}
-
-		public void SortRnd()
-		{
-			int n = Count;
-			while (n > 1)
-			{
-				int k = rnd.Next(n--);
-				CRec value = this[k];
-				this[k] = this[n];
-				this[n] = value;
-			}
-		}
-
 		public void SortTnt()
 		{
 			Sort(delegate (CRec r1, CRec r2)
@@ -125,12 +99,11 @@ namespace NSProgram
 			});
 		}
 
-		public void SortAge()
+		public void SortIndex()
 		{
-			SortRnd();
 			Sort(delegate (CRec r1, CRec r2)
 			{
-				return r1.age - r2.age;
+				return r1.index - r2.index;
 			});
 		}
 

@@ -15,10 +15,9 @@ namespace NSProgram
 		public int errors = 0;
 		public int maxRecords = 0;
 		public const string name = "BookReaderTnt";
-		public const string version = "2022-08-29";
+		public const string version = "2025-09-15";
 		public const string defExt = ".tnt";
 		public CChessExt chess = new CChessExt();
-		readonly int[] arrAge = new int[0x100];
 		public CRecList recList = new CRecList();
 		public CRapLog log = new CRapLog();
 		readonly Stopwatch stopWatch = new Stopwatch();
@@ -72,8 +71,8 @@ namespace NSProgram
 							{
 								tnt = MbwToTnt(m, b, w),
 								mat = ReadInt16(reader),
-								age = reader.ReadByte()
-							};
+								index = recList.Count
+                            };
 							recList.Add(rec);
 						}
 					}
@@ -83,7 +82,9 @@ namespace NSProgram
 			{
 				return false;
 			}
-			return true;
+			recList.SortTnt();
+			Program.bookCount = recList.Count;
+            return true;
 		}
 
 		public bool SaveToTnt(string p)
@@ -91,11 +92,10 @@ namespace NSProgram
 			if (string.IsNullOrEmpty(p))
 				return false;
 			string pt = p + ".tmp";
-			RefreshAge();
-			int maxAge = GetMaxAge();
             int del = DeltaRecords();
             if (del > 0)
                 Program.deleted += Delete(del);
+            recList.SortIndex();
             try
 			{
 				using (FileStream fs = File.Open(pt, FileMode.Create, FileAccess.Write, FileShare.None))
@@ -103,7 +103,6 @@ namespace NSProgram
 					using (BinaryWriter writer = new BinaryWriter(fs))
 					{
 						string lastTnt = String.Empty;
-						recList.SortTnt();
 						writer.Write(GetHeader());
 						foreach (CRec rec in recList)
 						{
@@ -112,14 +111,11 @@ namespace NSProgram
 								Program.deleted++;
 								continue;
 							}
-							if (rec.age < maxAge)
-								rec.age++;
 							TntToMbw(rec.tnt, out ulong m, out ulong b, out ulong w);
 							WriteUInt64(writer, m);
 							WriteUInt64(writer, b);
 							WriteUInt64(writer, w);
 							WriteInt16(writer, rec.mat);
-							writer.Write(rec.age);
 							lastTnt = rec.tnt;
 						}
 					}
@@ -147,9 +143,11 @@ namespace NSProgram
 			{
 				return false;
 			}
-			if (maxAge > 0)
-				log.Add($"book {recList.Count:N0} added {Program.added} updated {Program.updated} deleted {Program.deleted:N0} max {maxAge} zero {Zero()}");
-			return true;
+			recList.SortTnt();
+            if (recList.Count / 100 != Program.bookCount/100)
+                log.Add($"book {recList.Count:N0} added {Program.added} updated {Program.updated} deleted {Program.deleted:N0} zero {Zero()}");
+			Program.bookCount = recList.Count;
+            return true;
 		}
 
 		#endregion file tnt
@@ -162,7 +160,7 @@ namespace NSProgram
 				return true;
 			string[] lines = File.ReadAllLines(p);
 			foreach (string uci in lines)
-				AddUci(uci, out _);
+				AddUci(uci);
 			return true;
 		}
 
@@ -201,7 +199,7 @@ namespace NSProgram
 				cm = Regex.Replace(cm, @"\.(?! |$)", ". ");
 				if (cm.StartsWith("1. "))
 				{
-					AddUci(movesUci, out _);
+					AddUci(movesUci);
 					ShowMoves();
 					movesUci = String.Empty;
 					chess.SetFen();
@@ -222,7 +220,7 @@ namespace NSProgram
 					chess.MakeMove(emo);
 				}
 			}
-			AddUci(movesUci, out _);
+			AddUci(movesUci);
 			ShowMoves();
 			return true;
 		}
@@ -298,26 +296,6 @@ namespace NSProgram
 			}
 		}
 
-		int AgeAvg()
-		{
-			return (recList.Count >> 8) + 1;
-		}
-
-		int AgeDel()
-		{
-			return (AgeAvg() >> 1) + 1;
-		}
-
-		int AgeMax()
-		{
-			return AgeAvg() + AgeDel();
-		}
-
-		int AgeMin()
-		{
-			return AgeAvg() - AgeDel();
-		}
-
 		public void Clear()
 		{
 			recList.Clear();
@@ -333,29 +311,23 @@ namespace NSProgram
 			return UpdateBack(moves.Trim().Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries));
 		}
 
-		public int UpdateBack(List<string> moves)
-		{
-			return UpdateBack(moves.ToArray());
-		}
-
 		public int UpdateBack(string[] moves)
 		{
-
 			int result = 0;
-			List<CRec> lr = new List<CRec>();
+			List<CRec> recList = new List<CRec>();
 			chess.SetFen();
 			foreach (string uci in moves)
 				if (chess.MakeMove(uci, out _))
 				{
 					string tnt = chess.GetTnt();
-					CRec rec = recList.GetRec(tnt);
+                    CRec rec = this.recList.GetRec(tnt);
 					if (rec != null)
-						lr.Add(rec);
+						recList.Add(rec);
 					else break;
 				}
 				else break;
-			for (int n = lr.Count - 2; n >= 0; n--)
-				result += UpdateRec(lr[n]);
+			for (int n = recList.Count - 1; n >= 0; n--)
+				result += UpdateRec(recList[n]);
 			return result;
 		}
 
@@ -379,47 +351,26 @@ namespace NSProgram
 			return 0;
 		}
 
-		public int AddUci(string moves, out string uci, int limitLen = 0, int limitAdd = 0)
+		public int AddUci(string moves)
 		{
-			return AddUci(moves.Trim().Split(' '), out uci, limitLen, limitAdd);
+			return AddUci(moves.Trim().Split(' '));
 		}
 
-		public int AddUci(List<string> moves, out string uci, int limitLen = 0, int limitAdd = 0)
+		public int AddUci(string[] moves)
 		{
-			return AddUci(moves.ToArray(), out uci, limitLen, limitAdd);
-		}
-
-		public int AddUciMate(string moves, int gameLength)
-		{
-			return AddUciMate(moves.Trim().Split(' '), gameLength);
-		}
-
-		public int AddUciMate(List<string> moves, int gameLength)
-		{
-			return AddUciMate(moves.ToArray(), gameLength);
-		}
-
-		public int AddUci(string[] moves, out string uci, int limitLen = 0, int limitAdd = 0)
-		{
-			uci = String.Empty;
 			int ca = 0;
-			if ((limitLen == 0) || (limitLen > moves.Length))
-				limitLen = moves.Length;
-			chess.SetFen();
-			for (int n = 0; n < limitLen; n++)
+            chess.SetFen();
+			foreach (string m in moves)
 			{
-				string m = moves[n];
-				uci = n == 0 ? m : $"{uci} {m}";
 				if (chess.MakeMove(m, out _))
 				{
 					CRec rec = new CRec
 					{
-						tnt = chess.GetTnt()
-					};
+						tnt = chess.GetTnt(),
+						index = recList.Count
+                    };
 					if (recList.AddRec(rec))
 						ca++;
-					if ((limitAdd > 0) && (ca >= limitAdd))
-						break;
 				}
 				else
 					break;
@@ -427,7 +378,12 @@ namespace NSProgram
 			return ca;
 		}
 
-		public int AddUciMate(string[] moves, int gameLength)
+        public int AddUciMate(List<string> moves)
+        {
+            return AddUciMate(moves.ToArray());
+        }
+
+        public int AddUciMate(string[] moves)
 		{
 			int ca = 0;
 			chess.SetFen();
@@ -437,12 +393,13 @@ namespace NSProgram
 				if (!chess.MakeMove(m, out _))
 					return ca;
 				string tnt = chess.GetTnt();
-				short mat = GetMat(n, gameLength);
+				short mat = GetMat(n,moves.Length);
 				CRec rec = new CRec
 				{
 					tnt = tnt,
-					mat = mat
-				};
+					mat = mat,
+					index = recList.Count
+                };
 				if (recList.AddRec(rec))
 					ca++;
 				if ((Program.movesAdd > 0) && (ca >= Program.movesAdd))
@@ -450,14 +407,6 @@ namespace NSProgram
 			}
 			UpdateBack(moves);
 			return ca;
-		}
-
-		void RefreshAge()
-		{
-			for (int n = 0; n < 0x100; n++)
-				arrAge[n] = 0;
-			foreach (CRec rec in recList)
-				arrAge[rec.age]++;
 		}
 
 		void WriteUInt64(BinaryWriter writer, ulong v)
@@ -634,20 +583,6 @@ namespace NSProgram
 			return tnt;
 		}
 
-		int GetMaxAge()
-		{
-			int max = AgeMax();
-			int last = 0;
-			for (int n = 0; n < 0xff; n++)
-			{
-				int cur = arrAge[n];
-				if (last + cur < max)
-					return n;
-				last = cur;
-			}
-			return 0xfF;
-		}
-
 		public int Delete(int c)
 		{
 			return recList.RecDelete(c);
@@ -730,44 +665,9 @@ namespace NSProgram
 			{
 				if (bst.rec.mat != 0)
 					Console.WriteLine($"info score mate {bst.rec.mat}");
-				Console.WriteLine($"info string book {umo} {bst.rec.mat:+#;-#;0} possible {emoList.Count} age {bst.rec.age}");
+				Console.WriteLine($"info string book {umo} {bst.rec.mat:+#;-#;0} possible {emoList.Count} age {bst.rec.index}");
 			}
 			return umo;
-		}
-
-		public void ShowLevel(string frm,int lev)
-		{
-			int ageMax = AgeMax();
-			int ageMin = AgeMin();
-			int ageCou = arrAge[lev];
-			int del = 0;
-			if (ageCou < ageMin)
-				del = ageCou - ageMin;
-			if (ageCou > ageMax)
-				del = ageCou - ageMax;
-			Console.WriteLine(frm, lev, arrAge[lev], del);
-		}
-
-		public void InfoStructure()
-		{
-			int ageAvg = AgeAvg();
-			int ageMax = AgeMax();
-			int ageMin = AgeMin();
-			int ageDel = AgeDel();
-			string frm = "{0,6} {1,6} {2,6}";
-            Console.WriteLine($"moves {recList.Count:N0} min {ageMin:N0} avg {ageAvg:N0} max {ageMax:N0} delta {ageDel:N0}");
-            Console.WriteLine();
-            Console.WriteLine(frm, "age", "count", "delta");
-			RefreshAge();
-			ShowLevel(frm,0);
-			for (int n = 1; n < 0xff; n++)
-			{
-				if ((arrAge[n] > ageMax) || (arrAge[n] < ageMin))
-					ShowLevel(frm,n);
-				if (arrAge[n] == 0)
-					break;
-			}
-			ShowLevel(frm,255);
 		}
 
 		public void InfoMoves(string moves = "")
@@ -782,14 +682,14 @@ namespace NSProgram
 					Console.WriteLine("no moves found");
 				else
 				{
-					string frm="{0,6} {1,6} {2,6} {3,6}";
+					string frm="{0,6} {1,6} {2,6} {3,8}";
                     Console.WriteLine();
-                    Console.WriteLine(frm,"id", "move",  "mate", "age");
+                    Console.WriteLine(frm,"id", "move",  "mate", "index");
 					int i = 1;
 					foreach (CEmo e in el)
 					{
 						string umo = chess.EmoToUmo(e.emo);
-						Console.WriteLine(frm, i++, umo, e.rec.mat, e.rec.age);
+						Console.WriteLine(frm, i++, umo, e.rec.mat,recList.Count - e.rec.index);
 					}
 				}
 			}
@@ -802,7 +702,7 @@ namespace NSProgram
                 Console.WriteLine("no records");
                 return;
             }
-            InfoStructure();
+			Console.WriteLine($"Zero {Zero()}");
             InfoMoves();
         }
 
@@ -831,18 +731,18 @@ namespace NSProgram
 			Console.WriteLine($"records {recList.Count:N0} added {Program.added} updated {Program.updated} deleted {Program.deleted:N0}");
 		}
 
-		int Zero()
-		{
-			int z = 0;
-			foreach (CRec rec in recList)
-				if (rec.mat == 0)
-					z++;
-			return z;
-		}
+        int Zero()
+        {
+            int z = 0;
+            foreach (CRec rec in recList)
+                if (rec.mat == 0)
+                    z++;
+            return z;
+        }
 
-		#region save
+        #region save
 
-		public bool SaveToFile(string p = "")
+        public bool SaveToFile(string p = "")
 		{
 			if (string.IsNullOrEmpty(p))
 				if (string.IsNullOrEmpty(path))
