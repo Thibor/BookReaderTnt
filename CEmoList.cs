@@ -59,7 +59,7 @@ namespace NSProgram
 					return -1;
 				if (r2 > r1)
 					return 1;
-				return e2.rec.index - e1.rec.index;
+				return e1.rec.index - e2.rec.index;
 			});
 		}
 	}

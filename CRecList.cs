@@ -3,110 +3,113 @@ using System.Collections.Generic;
 
 namespace NSProgram
 {
-	class CRec
-	{
-		public short mat = 0;
-		public int index = 0;
-		public string tnt = String.Empty;
+    class CRec
+    {
+        public short mat = 0;
+        public int index = 0;
+        public string tnt = String.Empty;
 
-		public double GetValue() {
-			return mat == 0 ? 0 : 1.0 / mat;
-		}
-	}
+        public double GetValue()
+        {
+            return mat == 0 ? 0 : 1.0 / mat;
+        }
+    }
 
-	class CRecList : List<CRec>
-	{
-		readonly static Random rnd = new Random();
+    class CRecList : List<CRec>
+    {
+        readonly static Random rnd = new Random();
 
-		public bool AddRec(CRec rec)
-		{
-			int index = FindTnt(rec.tnt);
-			if (index == Count)
-				Add(rec);
-			else
-			{
-				CRec r = this[index];
-				if (r.tnt == rec.tnt)
-				{
-					r.index = rec.index;
-					r.mat = rec.mat;
-					return false;
-				}
-				else
-					Insert(index, rec);
-			}
-			return true;
-		}
+        public bool AddRec(CRec rec)
+        {
+            int index = FindTnt(rec.tnt);
+            if (index == Count)
+                Add(rec);
+            else
+            {
+                CRec r = this[index];
+                if (r.tnt == rec.tnt)
+                {
+                    //if (rec.index != 0)
+                        r.index = rec.index;
+                    //if (rec.mat != 0)
+                        r.mat = rec.mat;
+                    return false;
+                }
+                else
+                    Insert(index, rec);
+            }
+            return true;
+        }
 
-		public int RecDelete(int count)
-		{
-			if (count <= 0)
-				return 0;
-			int oldC = Count;
-			if (count >= Count)
-				Clear();
-			else
-			{
-				SortIndex();
-				RemoveRange(0,count);
-				SortTnt();
-			}
-			return oldC - Count;
-		}
+        public int RecDelete(int count)
+        {
+            if (count <= 0)
+                return 0;
+            int oldC = Count;
+            if (count >= Count)
+                Clear();
+            else
+            {
+                SortIndex();
+                RemoveRange(0, count);
+                SortTnt();
+            }
+            return oldC - Count;
+        }
 
-		public int FindTnt(string tnt)
-		{
-			int first = -1;
-			int last = Count;
-			while (true)
-			{
-				if (last - first == 1)
-					return last;
-				int middle = (first + last) >> 1;
-				CRec rec = this[middle];
-				int c = String.Compare(tnt,rec.tnt, StringComparison.Ordinal);
-				if (c < 0)
-					last = middle;
-				else if (c > 0)
-					first = middle;
-				else
-					return middle;
-			}
-		}
+        public int FindTnt(string tnt)
+        {
+            int first = -1;
+            int last = Count;
+            while (true)
+            {
+                if (last - first == 1)
+                    return last;
+                int middle = (first + last) >> 1;
+                CRec rec = this[middle];
+                int c = String.Compare(tnt, rec.tnt, StringComparison.Ordinal);
+                if (c < 0)
+                    last = middle;
+                else if (c > 0)
+                    first = middle;
+                else
+                    return middle;
+            }
+        }
 
-		public CRec GetRec()
-		{
-			int index = rnd.Next(Count);
-			if (index < Count)
-				return this[index];
-			return null;
-		}
+        public CRec GetRec()
+        {
+            int index = rnd.Next(Count);
+            if (index < Count)
+                return this[index];
+            return null;
+        }
 
-		public CRec GetRec(string tnt)
-		{
-			int index = FindTnt(tnt);
-			if (index < Count)
-				if (this[index].tnt == tnt)
-					return this[index];
-			return null;
-		}
+        public CRec GetRec(string tnt)
+        {
+            int index = FindTnt(tnt);
+            if (index < Count)
+                if (this[index].tnt == tnt)
+                    return this[index];
+            return null;
+        }
 
-		public void SortTnt()
-		{
-			Sort(delegate (CRec r1, CRec r2)
-			{
-				return String.Compare(r1.tnt,r2.tnt,StringComparison.Ordinal);
-			});
-		}
+        public void SortTnt()
+        {
+            Sort(delegate (CRec r1, CRec r2)
+            {
+                return String.Compare(r1.tnt, r2.tnt, StringComparison.Ordinal);
+            });
+        }
 
-		public void SortIndex()
-		{
-			Sort(delegate (CRec r1, CRec r2)
-			{
-				return r1.index - r2.index;
-			});
-		}
+        public void SortIndex()
+        {
+            Sort(delegate (CRec r1, CRec r2)
+            {
+                return r1.index - r2.index;
+            });
+        }
 
 
-	}
+    }
 }
